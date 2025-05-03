@@ -1,0 +1,153 @@
+#include <Renderer/Pipeline.hpp>
+#include <Renderer/Device.hpp>
+#include <Renderer/Swapchain.hpp>
+#include <Renderer/Descriptors.hpp>
+
+using namespace std;
+
+void Rhi::PipelineFactory::Init( void ) {
+    VkPipelineCacheCreateInfo pcci = { .sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO };
+    assert( vkCreatePipelineCache( Device::Instance()->GetDevice(), &pcci, nullptr, &mPipelineCache ) == VK_SUCCESS );
+}
+
+void Rhi::PipelineFactory::Destroy( void ) {
+    vkDestroyPipelineCache( Device::Instance()->GetDevice(), mPipelineCache, nullptr );
+}
+
+Rhi::RenderPipeline Rhi::PipelineFactory::CreateRenderPipeline( const Rhi::RenderPipelineSpecification & spec ) {
+    RenderPipeline rp = {
+        .spec           = spec,
+        .attributeCount = spec.vertexSpec.GetAttributeCount()
+    };
+
+    VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = {
+        .sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+        .flags                  = 0,
+        .topology               = spec.topology,
+        .primitiveRestartEnable = VK_FALSE
+    };
+    VkPipelineRasterizationStateCreateInfo rasterizationState = {
+        .sType            = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+        .flags            = 0,
+        .depthClampEnable = VK_FALSE,
+        .polygonMode      = spec.polygonMode,
+        .cullMode         = spec.cullMode,
+        .frontFace        = spec.winding,
+        .lineWidth        = 1.f,
+    };
+    VkPipelineColorBlendAttachmentState blendAttachmentState = {
+        .blendEnable         = VK_FALSE,
+        .colorWriteMask      = 0xF
+    };
+    VkPipelineColorBlendAttachmentState colorAttachmentState = {
+        .blendEnable    = VK_FALSE,
+        .colorWriteMask = 0xF
+    };
+    VkPipelineColorBlendStateCreateInfo colorBlendState = {
+        .sType           = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+        .attachmentCount = 1,
+        .pAttachments    = &colorAttachmentState
+    };
+    VkPipelineViewportStateCreateInfo viewportState = {
+        .sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+        .flags         = 0,
+        .viewportCount = 1,
+        .scissorCount  = 1
+    };
+    VkPipelineMultisampleStateCreateInfo multisampleState = {
+        .sType                = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+        .flags                = 0,
+        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT
+    };
+
+    VkPipelineDepthStencilStateCreateInfo depthState = {
+        .sType            = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+        .depthTestEnable  = VK_TRUE,
+        .depthWriteEnable = VK_TRUE,
+        .depthCompareOp   = VK_COMPARE_OP_LESS,
+    };
+
+    VkDynamicState dynamicStateEnables[] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+    VkPipelineDynamicStateCreateInfo dynamicState = {
+        .sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+        .flags             = 0,
+        .dynamicStateCount = 2,
+        .pDynamicStates    = dynamicStateEnables
+    };
+
+    VkFormat surfaceFormat = Swapchain::Instance()->GetSurfaceFormat();
+    VkPipelineRenderingCreateInfoKHR pci = {
+        .sType                   = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR,
+        .colorAttachmentCount    = 1,
+        .pColorAttachmentFormats = &surfaceFormat,
+        .depthAttachmentFormat   = VK_FORMAT_D32_SFLOAT,
+    };
+
+    bool isBufferBound[sMaxVertexBindings] = { false };
+    for ( uint i = 0; i != rp.attributeCount; ++i ) {
+        const VertexSpecification::VertexAttribute & vattr = spec.vertexSpec.attributes[i]; 
+        rp.attributes[i] = { .location = vattr.location, .binding = vattr.binding, .format = vattr.format, .offset = vattr.offset };
+        if ( !isBufferBound[vattr.binding] ) {
+            isBufferBound[vattr.binding] = true;
+            rp.bindings[rp.bindingCount++] = { .binding = vattr.binding, .stride = spec.vertexSpec.bindings[vattr.binding].stride, .inputRate = VK_VERTEX_INPUT_RATE_VERTEX };
+        }
+    }
+
+    VkPipelineVertexInputStateCreateInfo vertexInputState = {
+        .sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+        .vertexBindingDescriptionCount   = rp.bindingCount,
+        .pVertexBindingDescriptions      = rp.bindings,
+        .vertexAttributeDescriptionCount = rp.attributeCount,
+        .pVertexAttributeDescriptions    = rp.attributes
+    };
+
+    array<VkPipelineShaderStageCreateInfo, 2> shaderStages = {
+        VkPipelineShaderStageCreateInfo {
+            .sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+            .stage  = VK_SHADER_STAGE_VERTEX_BIT,
+            .module = spec.vertexShader,
+            .pName  = "main"
+        },
+        VkPipelineShaderStageCreateInfo {
+            .sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+            .stage  = VK_SHADER_STAGE_FRAGMENT_BIT,
+            .module = spec.fragmentShader,
+            .pName  = "main"
+        }
+    };
+
+    rp.shaderStage = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    VkPushConstantRange pcRange = {
+        .stageFlags = rp.shaderStage,
+        .offset     = 0,
+        .size       = 256
+    };
+    VkDescriptorSetLayout dsl = Descriptors::Instance()->GetDescriptorSetLayout();
+    VkPipelineLayoutCreateInfo plci = {
+        .sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .setLayoutCount         = 1,
+        .pSetLayouts            = &dsl,
+        .pushConstantRangeCount = 1,
+        .pPushConstantRanges    = &pcRange
+    };
+    assert( vkCreatePipelineLayout( Device::Instance()->GetDevice(), &plci, nullptr, &rp.layout ) == VK_SUCCESS );
+
+    VkGraphicsPipelineCreateInfo gpci = {
+        .sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+        .pNext               = &pci,
+        .stageCount          = static_cast<uint>( shaderStages.size() ),
+        .pStages             = shaderStages.data(),
+        .pVertexInputState   = &vertexInputState,
+        .pInputAssemblyState = &inputAssemblyState,
+        .pViewportState      = &viewportState,
+        .pRasterizationState = &rasterizationState,
+        .pMultisampleState   = &multisampleState,
+        .pDepthStencilState  = &depthState,
+        .pColorBlendState    = &colorBlendState,
+        .pDynamicState       = &dynamicState,
+        .layout              = rp.layout,
+    };
+
+    assert( vkCreateGraphicsPipelines( Device::Instance()->GetDevice(), mPipelineCache, 1, &gpci, nullptr, &rp.pipeline ) == VK_SUCCESS );
+    return rp;
+}
