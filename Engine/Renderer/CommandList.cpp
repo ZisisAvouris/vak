@@ -2,9 +2,14 @@
 #include <Renderer/Descriptors.hpp>
 #include <Renderer/Device.hpp>
 
-void Rhi::CommandList::BeginRendering( uint2 res, VkImage image, VkImageView view ) {
+void Rhi::CommandList::BeginRendering( uint2 res, VkImage image, VkImageView view, Util::TextureHandle dbHandle ) {
+    TextureHot * db = Device::Instance()->GetTexturePool()->GetHot( dbHandle );
+
     ImageBarrier( image, { VK_PIPELINE_STAGE_NONE, 0 }, { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT },
         VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL );
+    ImageBarrier( db->image, { VK_PIPELINE_STAGE_2_NONE, 0 },
+        { VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT, VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT },
+        VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, { .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT, .levelCount = 1, .layerCount = 1 } );
 
     VkRenderingAttachmentInfo colorAttachment = {
         .sType       = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
@@ -14,14 +19,24 @@ void Rhi::CommandList::BeginRendering( uint2 res, VkImage image, VkImageView vie
         .storeOp     = VK_ATTACHMENT_STORE_OP_STORE,
         .clearValue  = { .color = { 0.0f, 0.0f, 0.0f, 1.0f } }
     };
+    VkRenderingAttachmentInfo depthAttachment = {
+        .sType       = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+        .imageView   = db->view,
+        .imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+        .loadOp      = VK_ATTACHMENT_LOAD_OP_CLEAR,
+        .storeOp     = VK_ATTACHMENT_STORE_OP_STORE,
+        .clearValue  = { .depthStencil = { .depth = 0.0f } }
+    };
+
     VkRect2D renderArea = { {0,0}, {res.x, res.y} };
     VkRenderingInfoKHR renderInfo = {
-        .sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR,
-        .renderArea = renderArea,
-        .layerCount = 1,
-        .viewMask   = 0,
+        .sType                = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR,
+        .renderArea           = renderArea,
+        .layerCount           = 1,
+        .viewMask             = 0,
         .colorAttachmentCount = 1,
-        .pColorAttachments    = &colorAttachment
+        .pColorAttachments    = &colorAttachment,
+        .pDepthAttachment     = &depthAttachment
     };
 
     vkCmdSetScissor( mBuf, 0, 1, &renderArea );

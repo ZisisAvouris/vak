@@ -40,6 +40,7 @@ namespace Rhi {
         VkSampler sampler;
         Image                texImage;
         Util::TextureHandle  texture;
+        Util::TextureHandle  depthBuffer;
 
         void DebugPrintStructSizes( void );
 

@@ -19,7 +19,7 @@ namespace Rhi {
     class CommandPool;
     class CommandList final {
     public:
-        void BeginRendering( uint2 res, VkImage image, VkImageView view );
+        void BeginRendering( uint2 res, VkImage image, VkImageView view, Util::TextureHandle dbHandle );
         void EndRendering( void );
 
         void Draw( uint vertexCount, uint instanceCount = 1, uint firstVertex = 0, uint firstInstance = 0 );

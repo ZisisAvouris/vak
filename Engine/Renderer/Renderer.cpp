@@ -24,12 +24,41 @@ void Rhi::Renderer::Init( uint2 renderResolution ) {
     CommandPool::Instance()->Init();
     PipelineFactory::Instance()->Init();
 
-    vector<Vertex> vertexData;
-    vertexData.push_back( Vertex { .position = { -1.0f,  1.0f, 0.0f }, .uv = { 0.0f, 0.0f } } );
-    vertexData.push_back( Vertex { .position = { -1.0f, -1.0f, 0.0f }, .uv = { 0.0f, 1.0f } } );
-    vertexData.push_back( Vertex { .position = {  1.0f, -1.0f, 0.0f }, .uv = { 1.0f, 1.0f } } );
+    vector<Vertex> vertexData = {
+        { {-1.0f, -1.0f,  1.0f}, {0.0f, 0.0f} },
+        { { 1.0f, -1.0f,  1.0f}, {1.0f, 0.0f} },
+        { { 1.0f,  1.0f,  1.0f}, {1.0f, 1.0f} },
+        { {-1.0f,  1.0f,  1.0f}, {0.0f, 1.0f} },
+        { { 1.0f, -1.0f, -1.0f}, {0.0f, 0.0f} },
+        { {-1.0f, -1.0f, -1.0f}, {1.0f, 0.0f} },
+        { {-1.0f,  1.0f, -1.0f}, {1.0f, 1.0f} },
+        { { 1.0f,  1.0f, -1.0f}, {0.0f, 1.0f} },
+        { {-1.0f, -1.0f, -1.0f}, {0.0f, 0.0f} },
+        { {-1.0f, -1.0f,  1.0f}, {1.0f, 0.0f} },
+        { {-1.0f,  1.0f,  1.0f}, {1.0f, 1.0f} },
+        { {-1.0f,  1.0f, -1.0f}, {0.0f, 1.0f} },
+        { { 1.0f, -1.0f,  1.0f}, {0.0f, 0.0f} },
+        { { 1.0f, -1.0f, -1.0f}, {1.0f, 0.0f} },
+        { { 1.0f,  1.0f, -1.0f}, {1.0f, 1.0f} },
+        { { 1.0f,  1.0f,  1.0f}, {0.0f, 1.0f} },
+        { {-1.0f,  1.0f,  1.0f}, {0.0f, 0.0f} },
+        { { 1.0f,  1.0f,  1.0f}, {1.0f, 0.0f} },
+        { { 1.0f,  1.0f, -1.0f}, {1.0f, 1.0f} },
+        { {-1.0f,  1.0f, -1.0f}, {0.0f, 1.0f} },
+        { {-1.0f, -1.0f, -1.0f}, {0.0f, 0.0f} },
+        { { 1.0f, -1.0f, -1.0f}, {1.0f, 0.0f} },
+        { { 1.0f, -1.0f,  1.0f}, {1.0f, 1.0f} },
+        { {-1.0f, -1.0f,  1.0f}, {0.0f, 1.0f} },
+    };
 
-    vector<uint> indexData = { 0, 2, 1 };
+    vector<uint32_t> indexData = {
+        0, 2, 1, 0, 3, 2,
+        4, 6, 5, 4, 7, 6,
+        8, 10, 9, 8, 11, 10,
+        12, 14, 13, 12, 15, 14,
+        16, 18, 17, 16, 19, 18,
+        20, 22, 21, 20, 23, 22
+    };
 
     vertexBuffer = Device::Instance()->CreateBuffer({
         .usage     = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
@@ -87,6 +116,15 @@ void Rhi::Renderer::Init( uint2 renderResolution ) {
     });
     stbi_image_free( texImage.data );
 
+    depthBuffer = Device::Instance()->CreateTexture({
+        .type      = VK_IMAGE_TYPE_2D,
+        .format    = VK_FORMAT_D32_SFLOAT,
+        .extent    = { mRenderResolution.x, mRenderResolution.y, 1 },
+        .usage     = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+        .storage   = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        .debugName = "Depth"
+    });
+
     VkSamplerCreateInfo samplerCI = {
         .sType            = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
         .magFilter        = VK_FILTER_LINEAR,
@@ -134,6 +172,16 @@ void Rhi::Renderer::Resize( uint2 newResolution ) {
 
     mRenderResolution = newResolution;
     vkDeviceWaitIdle( Device::Instance()->GetDevice() );
+
+    Device::Instance()->Delete( depthBuffer );
+    depthBuffer = Device::Instance()->CreateTexture({
+        .type      = VK_IMAGE_TYPE_2D,
+        .format    = VK_FORMAT_D32_SFLOAT,
+        .extent    = { mRenderResolution.x, mRenderResolution.y, 1 },
+        .usage     = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+        .storage   = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        .debugName = "Depth"
+    });
     Swapchain::Instance()->Resize( mRenderResolution );
 }
 
@@ -145,9 +193,9 @@ void Rhi::Renderer::Render( float deltaTime ) {
     angle += 90.0f * deltaTime;
     angle = fmodf( angle, 360.0f );
 
-    glm::mat4 model = glm::rotate( glm::mat4(1.0f), glm::radians(angle), glm::vec3(0.0f, 0.0f, 1.0f) );
+    glm::mat4 model = glm::rotate( glm::mat4(1.0f), glm::radians(angle), glm::vec3(1.0f, 1.0f, 1.0f) );
     glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 0.0f, 5.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    glm::mat4 projection = glm::perspective( glm::radians(45.0f), mRenderResolution.x / static_cast<float>(mRenderResolution.y), .1f, 100.0f );
+    glm::mat4 projection = glm::perspectiveRH_ZO( glm::radians(45.0f), mRenderResolution.x / static_cast<float>(mRenderResolution.y), 100.0f, 0.1f );
 
     struct PushConstantsBuf {
         glm::mat4 mvp;
@@ -155,12 +203,14 @@ void Rhi::Renderer::Render( float deltaTime ) {
         .mvp = projection * view * model
     };
     
-    cmdlist->BeginRendering( mRenderResolution, image, imageView );
+    cmdlist->BeginRendering( mRenderResolution, image, imageView, depthBuffer );
         cmdlist->BindRenderPipeline( opaquePipeline );
         cmdlist->BindVertexBuffer( vertexBuffer );
         cmdlist->BindIndexBuffer( indexBuffer );
         cmdlist->PushConstants( &pc, sizeof(PushConstantsBuf) );
-        cmdlist->DrawIndexed( 3 );
+
+        BufferHot * hot = Device::Instance()->GetBufferPool()->GetHot( indexBuffer );
+        cmdlist->DrawIndexed( hot->size / sizeof(uint) );
     cmdlist->EndRendering();
     
     CommandPool::Instance()->Submit( cmdlist, image );
