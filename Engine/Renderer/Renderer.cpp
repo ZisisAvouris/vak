@@ -185,7 +185,7 @@ void Rhi::Renderer::Resize( uint2 newResolution ) {
     Swapchain::Instance()->Resize( mRenderResolution );
 }
 
-void Rhi::Renderer::Render( float deltaTime ) {
+void Rhi::Renderer::Render( glm::mat4 view, float deltaTime ) {
     auto [image, imageView] = Swapchain::Instance()->AcquireImage();
     CommandList * cmdlist = CommandPool::Instance()->AcquireCommandList();
 
@@ -194,7 +194,6 @@ void Rhi::Renderer::Render( float deltaTime ) {
     angle = fmodf( angle, 360.0f );
 
     glm::mat4 model = glm::rotate( glm::mat4(1.0f), glm::radians(angle), glm::vec3(1.0f, 1.0f, 1.0f) );
-    glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 0.0f, 5.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
     glm::mat4 projection = glm::perspectiveRH_ZO( glm::radians(45.0f), mRenderResolution.x / static_cast<float>(mRenderResolution.y), 100.0f, 0.1f );
 
     struct PushConstantsBuf {
@@ -210,7 +209,7 @@ void Rhi::Renderer::Render( float deltaTime ) {
         cmdlist->PushConstants( &pc, sizeof(PushConstantsBuf) );
 
         BufferHot * hot = Device::Instance()->GetBufferPool()->GetHot( indexBuffer );
-        cmdlist->DrawIndexed( hot->size / sizeof(uint) );
+        cmdlist->DrawIndexed( static_cast<uint>( hot->size ) / sizeof(uint) );
     cmdlist->EndRendering();
     
     CommandPool::Instance()->Submit( cmdlist, image );

@@ -28,9 +28,9 @@ namespace Rhi {
 
     private:
         Util::BufferHandle mStagingBuffer;
-        uint               mStagingBufferSize     = 0;
-        uint               mStagingBufferCapacity = 0;
-        uint               mCurrentOffset         = 0;
+        size_t             mStagingBufferSize     = 0;
+        size_t             mStagingBufferCapacity = 0;
+        size_t             mCurrentOffset         = 0;
 
         VkFence mStagingFence         = VK_NULL_HANDLE;
 

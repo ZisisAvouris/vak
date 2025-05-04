@@ -20,7 +20,7 @@ namespace Rhi {
         void Destroy( void );
 
         void Resize( uint2 );
-        void Render( float );
+        void Render( glm::mat4, float );
 
         bool IsReady( void ) const { return mIsReady; }
 

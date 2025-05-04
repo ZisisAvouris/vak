@@ -23,7 +23,6 @@ void Rhi::StagingDevice::Destroy( void ) {
 
 void Rhi::StagingDevice::Upload( Util::BufferHandle handle, const void * data, size_t size ) {
     BufferCold * staging = Device::Instance()->GetBufferPool()->GetCold( mStagingBuffer );
-    BufferHot * dst = Device::Instance()->GetBufferPool()->GetHot( handle );
 
     memcpy( static_cast<_byte *>( staging->ptr ) + mCurrentOffset, data, size );
     assert( mCurrentOffset < mStagingBufferCapacity );
@@ -35,7 +34,7 @@ void Rhi::StagingDevice::Upload( Util::BufferHandle handle, const void * data, s
     CommandPool::Instance()->Submit( cmdlist, mStagingFence );
 
     mCurrentOffset += size;
-    printf("[Staging Device] Current Offset %u out of capacity %u\n", mCurrentOffset, mStagingBufferCapacity );
+    printf("[Staging Device] Current Offset %llu out of capacity %llu\n", mCurrentOffset, mStagingBufferCapacity );
     
     vkWaitForFences( Device::Instance()->GetDevice(), 1, &mStagingFence, VK_TRUE, UINT64_MAX );
     vkResetFences( Device::Instance()->GetDevice(), 1, &mStagingFence );
@@ -73,7 +72,7 @@ void Rhi::StagingDevice::Upload( Util::TextureHandle handle, const void * data )
     CommandPool::Instance()->Submit( cmdlist, mStagingFence );
 
     mCurrentOffset += size;
-    printf("[Staging Device] Current Offset %u out of capacity %u\n", mCurrentOffset, mStagingBufferCapacity );
+    printf("[Staging Device] Current Offset %llu out of capacity %llu\n", mCurrentOffset, mStagingBufferCapacity );
 
     vkWaitForFences( Device::Instance()->GetDevice(), 1, &mStagingFence, VK_TRUE, UINT64_MAX );
     vkResetFences( Device::Instance()->GetDevice(), 1, &mStagingFence );

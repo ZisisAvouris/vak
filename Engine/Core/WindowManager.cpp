@@ -13,6 +13,25 @@ LRESULT CALLBACK WindowProc( HWND windowHandle, UINT msg, WPARAM wParam, LPARAM 
                 Rhi::Renderer::Instance()->Resize( { width, height } );
             return 0;
         }
+        case WM_KEYDOWN: {
+            switch ( wParam ) {
+                case VK_ESCAPE: ShowCursor( !Core::WindowManager::Instance()->ToggleInputCapture() ); break;
+                case 'W': Core::WindowManager::Instance()->SetKey( Core::Key_W, true ); break;
+                case 'A': Core::WindowManager::Instance()->SetKey( Core::Key_A, true ); break;
+                case 'S': Core::WindowManager::Instance()->SetKey( Core::Key_S, true ); break;
+                case 'D': Core::WindowManager::Instance()->SetKey( Core::Key_D, true ); break;
+            }
+            return 0;
+        }
+        case WM_KEYUP: {
+            switch ( wParam ) {
+                case 'W': Core::WindowManager::Instance()->SetKey( Core::Key_W, false ); break;
+                case 'A': Core::WindowManager::Instance()->SetKey( Core::Key_A, false ); break;
+                case 'S': Core::WindowManager::Instance()->SetKey( Core::Key_S, false ); break;
+                case 'D': Core::WindowManager::Instance()->SetKey( Core::Key_D, false ); break;
+            }
+            return 0;
+        }
         default:
             return DefWindowProc( windowHandle, msg, wParam, lParam );
     }
@@ -48,6 +67,11 @@ void Core::WindowManager::InitWindow( void ) {
 
     ShowWindow( mWindowHandle, SW_SHOW );
 
+    ShowCursor( FALSE );
+    RecenterCursor();
+
+    Entity::Camera::Instance()->Init( glm::vec3( 0.0f, 0.0f, 5.0f ) );
+
     LARGE_INTEGER freq;
     QueryPerformanceFrequency( &freq );
     mFrequency = static_cast<float>( freq.QuadPart );
@@ -67,7 +91,9 @@ void Core::WindowManager::Run( void ) {
         float deltaTime = ( currentTime.QuadPart - mLastTime.QuadPart ) / mFrequency;
         mLastTime = currentTime;
 
-        Rhi::Renderer::Instance()->Render( deltaTime );
+        if ( mShouldCaptureInputs )
+            Entity::Camera::Instance()->ProcessKeyInput( mKeyInput, deltaTime );
+        Rhi::Renderer::Instance()->Render( Entity::Camera::Instance()->GetViewMatrix(), deltaTime );
     }
 
     Rhi::Renderer::Instance()->Destroy();
@@ -82,4 +108,30 @@ void Core::WindowManager::PollEvents( void ) {
         TranslateMessage( &msg );
         DispatchMessage( &msg );
     }
+
+    if ( mShouldCaptureInputs ) {
+        // Skip one frame after recapturing mouse, so the accumulated delta doesn't make the camera jump to wherever
+        if ( mJustCapturedInput ) {
+            mJustCapturedInput = false;
+            RecenterCursor();
+            return;
+        }
+
+        POINT cursorPos;
+        GetCursorPos( &cursorPos );
+    
+        const float dx = static_cast<float>( cursorPos.x - mWindowCenter.x );
+        const float dy = static_cast<float>( cursorPos.y - mWindowCenter.y );
+        Entity::Camera::Instance()->ProcessMouseMovement( dx, dy );
+        SetCursorPos( mWindowCenter.x, mWindowCenter.y );
+    }
+}
+
+void Core::WindowManager::RecenterCursor( void ) {
+    RECT windowRect;
+    GetClientRect( mWindowHandle, &windowRect );
+    MapWindowPoints( mWindowHandle, nullptr, (POINT*)&windowRect, 2 );
+    mWindowCenter.x = ( windowRect.left + windowRect.right ) / 2;
+    mWindowCenter.y = ( windowRect.top + windowRect.bottom ) / 2;
+    SetCursorPos( mWindowCenter.x, mWindowCenter.y );
 }

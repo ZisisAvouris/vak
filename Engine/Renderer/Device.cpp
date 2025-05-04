@@ -17,11 +17,11 @@ void Rhi::Device::Init( void ) {
 }
 
 void Rhi::Device::Destroy( void ) {
-    for ( size_t i = 0; i < mTexturePool.GetObjectCount(); ++i ) {
+    for ( uint i = 0; i < mTexturePool.GetObjectCount(); ++i ) {
         Util::TextureHandle handle = mTexturePool.GetHandle( i );
         if ( handle.Valid() ) Delete( handle );
     }
-    for ( size_t i = 0; i < mBufferPool.GetObjectCount(); ++i ) {
+    for ( uint i = 0; i < mBufferPool.GetObjectCount(); ++i ) {
         Util::BufferHandle handle = mBufferPool.GetHandle( i );
         if ( handle.Valid() ) Delete( handle );
     }
