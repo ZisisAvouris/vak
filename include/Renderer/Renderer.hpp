@@ -1,6 +1,7 @@
 #pragma once
 #include <Util/Singleton.hpp>
 #include <Util/Containers.hpp>
+#include <Util/Pool.hpp>
 #include <Renderer/RenderBase.hpp>
 
 #include <Resource/Resource.hpp>
@@ -23,18 +24,24 @@ namespace Rhi {
 
         bool IsReady( void ) const { return mIsReady; }
 
+        void Delete( Util::TextureHandle );
+
     private:        
         uint2 mRenderResolution;
         bool  mIsReady = false;
 
+        VkShaderModule smVert, smFrag;
         RenderPipeline opaquePipeline;
         Shader         vertexShader;
         Shader         fragmentShader;
-        Buffer         vertexBuffer;
-        Buffer         indexBuffer;
+        Util::BufferHandle vertexBuffer;
+        Util::BufferHandle indexBuffer;
 
-        Image          texImage;
-        Texture        texture;
+        VkSampler sampler;
+        Image                texImage;
+        Util::TextureHandle  texture;
+
+        void DebugPrintStructSizes( void );
 
     };
 }

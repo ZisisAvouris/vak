@@ -61,10 +61,11 @@ void Rhi::Descriptors::Destroy( void ) {
     vkDestroyDescriptorPool( Device::Instance()->GetDevice(), mDescriptorPool, nullptr );
 }
 
-void Rhi::Descriptors::UpdateDescriptorSets( const Texture & tex, VkSampler sampler ) {
+void Rhi::Descriptors::UpdateDescriptorSets( Util::TextureHandle handle, VkSampler sampler ) {
+    TextureHot * hot = Device::Instance()->GetTexturePool()->GetHot( handle );
     VkDescriptorImageInfo descriptorImageInfo = {
         .sampler     = VK_NULL_HANDLE,
-        .imageView   = tex.view,
+        .imageView   = hot->view,
         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
     };
     VkDescriptorImageInfo descriptorSamplerInfo = {

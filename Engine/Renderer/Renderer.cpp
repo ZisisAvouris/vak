@@ -8,6 +8,7 @@
 #include <stb_image.h>
 
 void Rhi::Renderer::Init( uint2 renderResolution ) {
+    DebugPrintStructSizes();
     mRenderResolution = renderResolution;
 
     RenderContext::Instance()->Init();
@@ -30,15 +31,24 @@ void Rhi::Renderer::Init( uint2 renderResolution ) {
 
     vector<uint> indexData = { 0, 2, 1 };
 
-    vertexBuffer = CreateBuffer( VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        vertexData.size() * sizeof(Vertex), vertexData.data() );  
-    indexBuffer  = CreateBuffer( VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        indexData.size() * sizeof(uint), indexData.data() );
+    vertexBuffer = Device::Instance()->CreateBuffer({
+        .usage     = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+        .storage   = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        .size      = vertexData.size() * sizeof( Vertex ),
+        .ptr       = vertexData.data(),
+        .debugName = "Vertex" 
+    });
+    indexBuffer = Device::Instance()->CreateBuffer({
+        .usage     = VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+        .storage   = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        .size      = indexData.size() * sizeof( Vertex ),
+        .ptr       = indexData.data(),
+        .debugName = "Index" 
+    });
 
     vertexShader = Resource::LoadShader( "assets/shaders/shader.vert.spv" );
     fragmentShader = Resource::LoadShader( "assets/shaders/shader.frag.spv" );
 
-    VkShaderModule smVert, smFrag;
     VkShaderModuleCreateInfo vertCI = {
         .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
         .codeSize = vertexShader.size,
@@ -67,12 +77,13 @@ void Rhi::Renderer::Init( uint2 renderResolution ) {
     });
 
     texImage = LoadTexture( "assets/textures/wood.jpg" );
-    texture  = CreateTexture({
-        .type   = VK_IMAGE_TYPE_2D,
-        .format = VK_FORMAT_R8G8B8A8_UNORM,
-        .extent = { texImage.width, texImage.height, 1 },
-        .usage  = VK_IMAGE_USAGE_SAMPLED_BIT,
-        .data   = texImage.data
+    texture  = Device::Instance()->CreateTexture({
+        .type      = VK_IMAGE_TYPE_2D,
+        .format    = VK_FORMAT_R8G8B8A8_UNORM,
+        .extent    = { texImage.width, texImage.height, 1 },
+        .usage     = VK_IMAGE_USAGE_SAMPLED_BIT,
+        .data      = texImage.data,
+        .debugName = "Wood"
     });
     stbi_image_free( texImage.data );
 
@@ -92,16 +103,22 @@ void Rhi::Renderer::Init( uint2 renderResolution ) {
         .maxLod           = .0f,
         .borderColor      = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK
     };
-    VkSampler sampler;
     vkCreateSampler( Device::Instance()->GetDevice(), &samplerCI, nullptr, &sampler );
 
     Descriptors::Instance()->UpdateDescriptorSets( texture, sampler );
-
 }
 
 void Rhi::Renderer::Destroy( void ) {
     vkDeviceWaitIdle( Device::Instance()->GetDevice() );
 
+    vkDestroyPipelineLayout( Device::Instance()->GetDevice(), opaquePipeline.layout, nullptr );
+    vkDestroyPipeline( Device::Instance()->GetDevice(), opaquePipeline.pipeline, nullptr );
+
+    vkDestroyShaderModule( Device::Instance()->GetDevice(), smVert, nullptr );
+    vkDestroyShaderModule( Device::Instance()->GetDevice(), smFrag, nullptr );
+
+    vkDestroySampler( Device::Instance()->GetDevice(), sampler, nullptr );
+    
     PipelineFactory::Instance()->Destroy();
     CommandPool::Instance()->Destroy();
     Descriptors::Instance()->Destroy();
@@ -148,4 +165,11 @@ void Rhi::Renderer::Render( float deltaTime ) {
     
     CommandPool::Instance()->Submit( cmdlist, image );
     Swapchain::Instance()->Present();
+}
+
+void Rhi::Renderer::DebugPrintStructSizes( void ) {
+    printf( "[DEBUG] TextureHot  size: %llu\n", sizeof( TextureHot ) );
+    printf( "[DEBUG] TextureCold size: %llu\n", sizeof( TextureCold ) );
+    printf( "[DEBUG] BufferHot   size: %llu\n", sizeof( BufferHot ) );
+    printf( "[DEBUG] BufferCold  size: %llu\n", sizeof( BufferCold ) );
 }

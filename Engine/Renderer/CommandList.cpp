@@ -1,5 +1,6 @@
 #include <Renderer/CommandPool.hpp>
 #include <Renderer/Descriptors.hpp>
+#include <Renderer/Device.hpp>
 
 void Rhi::CommandList::BeginRendering( uint2 res, VkImage image, VkImageView view ) {
     ImageBarrier( image, { VK_PIPELINE_STAGE_NONE, 0 }, { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT },
@@ -50,24 +51,30 @@ void Rhi::CommandList::BindRenderPipeline( const RenderPipeline & rp ) {
     mBoundRP = &rp;
 }
 
-void Rhi::CommandList::BindVertexBuffer( const Buffer & vertexBuffer ) {
+void Rhi::CommandList::BindVertexBuffer( Util::BufferHandle handle ) {
+    BufferHot * hot = Device::Instance()->GetBufferPool()->GetHot( handle );
     VkDeviceSize offsets[] = { 0 };
-    vkCmdBindVertexBuffers( mBuf, 0, 1, &vertexBuffer.buf, offsets );
+    vkCmdBindVertexBuffers( mBuf, 0, 1, &hot->buf, offsets );
 }
 
-void Rhi::CommandList::BindIndexBuffer( const Buffer & indexBuffer, VkIndexType indexType ) {
-    vkCmdBindIndexBuffer( mBuf, indexBuffer.buf, 0, indexType );
+void Rhi::CommandList::BindIndexBuffer( Util::BufferHandle handle, VkIndexType indexType ) {
+    BufferHot * hot = Device::Instance()->GetBufferPool()->GetHot( handle );
+    vkCmdBindIndexBuffer( mBuf, hot->buf, 0, indexType );
 }
 
-void Rhi::CommandList::Copy( const Buffer & stagingBuf, const Buffer & dstBuf, VkBufferCopy * copy ) {
-    vkCmdCopyBuffer( mBuf, stagingBuf.buf, dstBuf.buf, 1, copy );
+void Rhi::CommandList::Copy( Util::BufferHandle stagingBuf, Util::BufferHandle dstBuf, VkBufferCopy * copy ) {
+    BufferHot * staging = Device::Instance()->GetBufferPool()->GetHot( stagingBuf );
+    BufferHot * dst     = Device::Instance()->GetBufferPool()->GetHot( dstBuf );
+    vkCmdCopyBuffer( mBuf, staging->buf, dst->buf, 1, copy );
 }
 
-void Rhi::CommandList::Copy( const Buffer & stagingBuf, const Texture & tex, VkBufferImageCopy * copy ) {
-    vkCmdCopyBufferToImage( mBuf, stagingBuf.buf, tex.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, copy );
+void Rhi::CommandList::Copy( Util::BufferHandle stagingBuf, VkImage image, VkBufferImageCopy * copy ) {
+    BufferHot * staging = Device::Instance()->GetBufferPool()->GetHot( stagingBuf );
+    vkCmdCopyBufferToImage( mBuf, staging->buf, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, copy );
 }
 
-void Rhi::CommandList::BufferBarrier( const Buffer & buf ) {
+void Rhi::CommandList::BufferBarrier( Util::BufferHandle handle ) {
+    BufferHot * hot = Device::Instance()->GetBufferPool()->GetHot( handle );
     VkBufferMemoryBarrier2 barrier = {
         .sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
         .srcStageMask        = VK_PIPELINE_STAGE_2_COPY_BIT,
@@ -75,15 +82,15 @@ void Rhi::CommandList::BufferBarrier( const Buffer & buf ) {
         .dstAccessMask       = 0,
         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .buffer              = buf.buf,
+        .buffer              = hot->buf,
         .offset              = 0,
-        .size                = buf.size
+        .size                = hot->size
     };
     VkPipelineStageFlags dstStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
-    if ( buf.usage & VK_BUFFER_USAGE_VERTEX_BUFFER_BIT ) {
+    if ( hot->usage & VK_BUFFER_USAGE_VERTEX_BUFFER_BIT ) {
         dstStageMask          |= VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
         barrier.dstAccessMask |= VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
-    } else if ( buf.usage & VK_BUFFER_USAGE_INDEX_BUFFER_BIT ) {
+    } else if ( hot->usage & VK_BUFFER_USAGE_INDEX_BUFFER_BIT ) {
         dstStageMask          |= VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
         barrier.dstAccessMask |= VK_ACCESS_INDEX_READ_BIT;
     }

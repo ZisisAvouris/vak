@@ -59,10 +59,10 @@ void Core::WindowManager::Run( void ) {
 
     Rhi::Renderer::Instance()->Init( mWinResolution );
 
+    LARGE_INTEGER currentTime;
     while ( !mShouldClose ) {
         PollEvents();
 
-        LARGE_INTEGER currentTime;
         QueryPerformanceCounter( &currentTime );
         float deltaTime = ( currentTime.QuadPart - mLastTime.QuadPart ) / mFrequency;
         mLastTime = currentTime;

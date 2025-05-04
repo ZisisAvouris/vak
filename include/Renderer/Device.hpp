@@ -8,13 +8,6 @@
 
 namespace Rhi {
 
-    Buffer CreateBuffer( VkBufferUsageFlags, VkMemoryPropertyFlags, size_t, const void * = nullptr );
-    void   DestroyBuffer( Buffer * );
-
-    Texture CreateTexture( const TextureSpecification & );
-
-    VkImageView CreateImageView( VkImage, VkFormat, VkImageAspectFlags );
-
     struct QueueFamilyIndex {
         uint graphics = UINT32_MAX;
 
@@ -30,14 +23,14 @@ namespace Rhi {
         void Init( void );
         void Destroy( void );
 
-        void Upload( const Buffer &, const void *, size_t );
-        void Upload( const Texture &, const void * );
+        void Upload( Util::BufferHandle, const void *, size_t );
+        void Upload( Util::TextureHandle, const void * );
 
     private:
-        Buffer mStagingBuffer;
-        uint   mStagingBufferSize     = 0;
-        uint   mStagingBufferCapacity = 0;
-        uint   mCurrentOffset         = 0;
+        Util::BufferHandle mStagingBuffer;
+        uint               mStagingBufferSize     = 0;
+        uint               mStagingBufferCapacity = 0;
+        uint               mCurrentOffset         = 0;
 
         VkFence mStagingFence         = VK_NULL_HANDLE;
 
@@ -62,6 +55,17 @@ namespace Rhi {
 
         VmaAllocator GetVMA( void ) const { return mVma; }
 
+        Util::Pool<Util::_Texture, TextureHot, TextureCold> * GetTexturePool( void ) { return &mTexturePool; }
+        Util::Pool<Util::_Buffer, BufferHot, BufferCold> * GetBufferPool( void ) { return &mBufferPool; }
+
+        Util::TextureHandle CreateTexture( const TextureSpecification & );
+        Util::BufferHandle  CreateBuffer( const BufferSpecification & );
+
+        void Delete( Util::TextureHandle );
+        void Delete( Util::BufferHandle );
+
+        VkImageView CreateImageView( VkImage, VkFormat, VkImageAspectFlags );
+
         void QuerySurfaceCapabilities( void );
     
     private:
@@ -78,6 +82,9 @@ namespace Rhi {
         vector<VkSurfaceFormatKHR> mDeviceSurfaceFormats;
         vector<VkFormat>           mDeviceDepthFormats;
         VkSurfaceCapabilitiesKHR   mSurfaceCapabilities;
+
+        Util::Pool<Util::_Texture, TextureHot, TextureCold> mTexturePool{ 128, "Texture" };
+        Util::Pool<Util::_Buffer, BufferHot, BufferCold>    mBufferPool{ 128, "Buffer" };
 
         void CreateSurface( void );
 

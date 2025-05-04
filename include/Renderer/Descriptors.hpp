@@ -1,6 +1,7 @@
 #pragma once
 #include <Util/Singleton.hpp>
 #include <Util/Defines.hpp>
+#include <Util/Pool.hpp>
 #include <Renderer/RenderBase.hpp>
 
 namespace Rhi {
@@ -16,7 +17,7 @@ namespace Rhi {
         void Init( void );
         void Destroy( void );
 
-        void UpdateDescriptorSets( const Texture &, VkSampler );
+        void UpdateDescriptorSets( Util::TextureHandle, VkSampler );
 
         VkDescriptorSetLayout GetDescriptorSetLayout( void ) const { return mDescriptorLayout; }
         VkDescriptorSet       GetDescriptorSet( void ) const { return mDescriptorSet; }

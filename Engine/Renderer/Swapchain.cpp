@@ -79,8 +79,6 @@ void Rhi::Swapchain::Resize( uint2 newResolution ) {
             }
         };
         assert( vkCreateImageView( Device::Instance()->GetDevice(), &ivci, nullptr, &mSwapchainViews[i] ) == VK_SUCCESS );
-
-        
     }
     VkSemaphoreCreateInfo sci = { .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
     assert( vkCreateSemaphore( Device::Instance()->GetDevice(), &sci, nullptr, &mAcquireSemaphore ) == VK_SUCCESS );

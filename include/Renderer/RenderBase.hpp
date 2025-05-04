@@ -6,49 +6,73 @@
 #define VMA_STATIC_VULKAN_FUNCTIONS 1
 #include <vk_mem_alloc.h>
 
-namespace Rhi {
+#include <string>
 
-    struct Buffer final {
+namespace Rhi {
+    // @todo: Revisit this split of hot and cold data for every resource
+
+    // struct Buffer final {
+    //     VkBuffer              buf     = VK_NULL_HANDLE;
+    //     VkDeviceMemory        mem     = VK_NULL_HANDLE;
+    //     VmaAllocation         alloc   = VK_NULL_HANDLE;
+    //     VkDeviceSize          size    = 0;
+    //     VkBufferUsageFlags    usage   = 0;
+    //     VkMemoryPropertyFlags storage = 0;
+    //     void *                ptr     = nullptr;
+    // };
+    struct BufferSpecification final {
+        VkBufferUsageFlags    usage   = 0;
+        VkMemoryPropertyFlags storage = 0;
+        size_t                size    = 0;
+        void                 *ptr     = 0;
+        std::string debugName = "You should name this buffer!";
+    };
+    struct BufferHot final {
         VkBuffer              buf     = VK_NULL_HANDLE;
-        VkDeviceMemory        mem     = VK_NULL_HANDLE;
-        VmaAllocation         alloc   = VK_NULL_HANDLE;
         VkDeviceSize          size    = 0;
         VkBufferUsageFlags    usage   = 0;
         VkMemoryPropertyFlags storage = 0;
-        void *                ptr     = nullptr;
+    };
+    struct BufferCold final {
+        std::string    debugName = "Buffer: ";
+        VmaAllocation  alloc     = VK_NULL_HANDLE;
+        void          *ptr       = nullptr;
     };
 
     struct TextureSpecification final {
-        VkImageType           type    = VK_IMAGE_TYPE_MAX_ENUM;
-        VkFormat              format  = VK_FORMAT_UNDEFINED;
-        VkExtent3D            extent  = { 0, 0, 0 };
-        VkImageUsageFlags     usage   = 0;
-        VkMemoryPropertyFlags storage = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-        const void *          data    = nullptr; 
+        VkImageType           type        = VK_IMAGE_TYPE_MAX_ENUM;
+        VkFormat              format      = VK_FORMAT_UNDEFINED;
+        VkExtent3D            extent      = { 0, 0, 0 };
+        VkImageUsageFlags     usage       = 0;
+        VkMemoryPropertyFlags storage     = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+        const void *          data        = nullptr; 
+        bool                  isSwapchain = false;
+        std::string           debugName   = "You should name this texture!";
     };
-    struct Texture final {
-        VkImage           image            = VK_NULL_HANDLE;
-        VkImageView       view             = VK_NULL_HANDLE;
-        VkDeviceMemory    mem              = VK_NULL_HANDLE;
-        VmaAllocation     alloc            = VK_NULL_HANDLE;
-        VkExtent3D        extent           = { 0, 0, 0 };
-        VkImageType       type             = VK_IMAGE_TYPE_MAX_ENUM;
-        VkFormat          format           = VK_FORMAT_UNDEFINED;
-        VkImageLayout     layout           = VK_IMAGE_LAYOUT_UNDEFINED;
-        VkImageUsageFlags usage            = 0;
-        void             *ptr              = nullptr; // In case the texture is host visible
-        bool              isDepth          = false;
-        bool              isStencil        = false;
-        bool              isSwapchainImage = false;
-
-        static inline bool isDepthFormat( VkFormat format ) {
-            return ( format == VK_FORMAT_D16_UNORM ) || ( format == VK_FORMAT_X8_D24_UNORM_PACK32 ) || ( format == VK_FORMAT_D32_SFLOAT )
-                || ( format == VK_FORMAT_D16_UNORM_S8_UINT ) || ( format == VK_FORMAT_D24_UNORM_S8_UINT ) || ( format == VK_FORMAT_D32_SFLOAT_S8_UINT );
-        };
-        static inline bool isStencilFormat( VkFormat format ) {
-            return ( format == VK_FORMAT_S8_UINT ) || ( format == VK_FORMAT_D16_UNORM_S8_UINT ) || ( format == VK_FORMAT_D24_UNORM_S8_UINT ) || ( format == VK_FORMAT_D32_SFLOAT_S8_UINT );
-        }
+    struct TextureHot final {
+        VkImage           image  = VK_NULL_HANDLE;
+        VkImageView       view   = VK_NULL_HANDLE;
+        VkExtent3D        extent = { 0, 0, 0 };
+        VkImageType       type   = VK_IMAGE_TYPE_MAX_ENUM;
+        VkFormat          format = VK_FORMAT_UNDEFINED;
+        VkImageLayout     layout = VK_IMAGE_LAYOUT_UNDEFINED;
+        VkImageUsageFlags usage  = 0;
     };
+    struct TextureCold final {
+        std::string    debugName   = "Texture: ";
+        VmaAllocation  alloc       = VK_NULL_HANDLE;
+        void          *ptr         = nullptr;
+        bool           isSwapchain = false;
+        bool           isDepth     = false;
+        bool           isStencil   = false;
+    };
+    static inline bool isDepthFormat( VkFormat format ) {
+        return ( format == VK_FORMAT_D16_UNORM ) || ( format == VK_FORMAT_X8_D24_UNORM_PACK32 ) || ( format == VK_FORMAT_D32_SFLOAT )
+            || ( format == VK_FORMAT_D16_UNORM_S8_UINT ) || ( format == VK_FORMAT_D24_UNORM_S8_UINT ) || ( format == VK_FORMAT_D32_SFLOAT_S8_UINT );
+    };
+    static inline bool isStencilFormat( VkFormat format ) {
+        return ( format == VK_FORMAT_S8_UINT ) || ( format == VK_FORMAT_D16_UNORM_S8_UINT ) || ( format == VK_FORMAT_D24_UNORM_S8_UINT ) || ( format == VK_FORMAT_D32_SFLOAT_S8_UINT );
+    }
 
     static constexpr uint sMaxVertexAttributes = 8;
     static constexpr uint sMaxVertexBindings   = 8;
