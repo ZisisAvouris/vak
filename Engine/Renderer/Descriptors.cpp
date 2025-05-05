@@ -61,39 +61,76 @@ void Rhi::Descriptors::Destroy( void ) {
     vkDestroyDescriptorPool( Device::Instance()->GetDevice(), mDescriptorPool, nullptr );
 }
 
-void Rhi::Descriptors::UpdateDescriptorSets( Util::TextureHandle handle, VkSampler sampler ) {
-    TextureHot * hot = Device::Instance()->GetTexturePool()->GetHot( handle );
-    VkDescriptorImageInfo descriptorImageInfo = {
-        .sampler     = VK_NULL_HANDLE,
-        .imageView   = hot->view,
-        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-    };
-    VkDescriptorImageInfo descriptorSamplerInfo = {
-        .sampler     = sampler,
-        .imageView   = VK_NULL_HANDLE,
-        .imageLayout = VK_IMAGE_LAYOUT_UNDEFINED
-    };
+void Rhi::Descriptors::UpdateDescriptorSets( void ) {
+    if ( !mShouldUpdateDescriptors )
+        return;
+    assert( Device::Instance()->GetTexturePool()->GetEntryCount() < sMaxTextures && "Exceeded max number of textures!" );
 
-    VkWriteDescriptorSet write[Binding_MAX] = {
-        VkWriteDescriptorSet {
+    vector<VkDescriptorImageInfo> descriptorInfoSampledImages;
+    descriptorInfoSampledImages.reserve( Device::Instance()->GetTexturePool()->GetEntryCount() );
+
+    
+    Util::TextureHandle dummy = Device::Instance()->GetTexturePool()->GetHandle( 0 );
+    VkImageView dummyView = Device::Instance()->GetTexturePool()->GetHot( dummy )->view;
+
+    for ( uint i = 0; i < Device::Instance()->GetTexturePool()->GetObjectCount(); ++i ) {
+        Util::TextureHandle handle = Device::Instance()->GetTexturePool()->GetHandle( i );
+        if ( handle.Valid() ) {
+            TextureHot * hot = Device::Instance()->GetTexturePool()->GetHot( handle );
+
+            const bool isSampled = ( hot->usage & VK_IMAGE_USAGE_SAMPLED_BIT ) > 0;
+            descriptorInfoSampledImages.push_back( VkDescriptorImageInfo {
+                .sampler     = VK_NULL_HANDLE,
+                .imageView   = isSampled ? hot->view : dummyView,
+                .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL 
+            });
+        }
+    }
+
+    vector<VkDescriptorImageInfo> descriptorInfoSamplers;
+    descriptorInfoSamplers.reserve( Device::Instance()->GetSamplerPool()->GetEntryCount() );
+
+    for ( uint i = 0; i < Device::Instance()->GetSamplerPool()->GetObjectCount(); ++i ) {
+        Util::SamplerHandle handle = Device::Instance()->GetSamplerPool()->GetHandle( i );
+        if ( handle.Valid() ) {
+            Sampler * sampler = Device::Instance()->GetSamplerPool()->GetHot( handle );
+            
+            // @todo: ugly hack, fix in Pool implementation
+            if ( sampler->sampler == nullptr )
+                continue;
+
+            descriptorInfoSamplers.push_back( VkDescriptorImageInfo {
+                .sampler     = sampler->sampler,
+                .imageView   = VK_NULL_HANDLE,
+                .imageLayout = VK_IMAGE_LAYOUT_UNDEFINED
+            });
+        }
+    }
+
+    VkWriteDescriptorSet write[Binding_MAX] = {};
+    uint numWrites = 0;
+
+    if ( !descriptorInfoSampledImages.empty() )
+        write[numWrites++] = {
             .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
             .dstSet          = mDescriptorSet,
             .dstBinding      = Binding_Textures,
             .dstArrayElement = 0,
-            .descriptorCount = 1,
+            .descriptorCount = static_cast<uint>( descriptorInfoSampledImages.size() ),
             .descriptorType  = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-            .pImageInfo      = &descriptorImageInfo
-        },
-        VkWriteDescriptorSet {
+            .pImageInfo      = descriptorInfoSampledImages.data()
+        };
+    if ( !descriptorInfoSamplers.empty() )
+        write[numWrites++] = {
             .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
             .dstSet          = mDescriptorSet,
             .dstBinding      = Binding_Samplers,
             .dstArrayElement = 0,
-            .descriptorCount = 1,
+            .descriptorCount = static_cast<uint>( descriptorInfoSamplers.size() ),
             .descriptorType  = VK_DESCRIPTOR_TYPE_SAMPLER,
-            .pImageInfo      = &descriptorSamplerInfo
-        }
-    };
+            .pImageInfo      = descriptorInfoSamplers.data()
+        };
 
     vkUpdateDescriptorSets( Device::Instance()->GetDevice(), 2, write, 0, nullptr );
+    mShouldUpdateDescriptors = false;
 }

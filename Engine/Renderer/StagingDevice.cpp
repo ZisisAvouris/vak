@@ -3,7 +3,7 @@
 #include <Renderer/CommandPool.hpp>
 
 void Rhi::StagingDevice::Init( void ) {
-    mStagingBufferCapacity = 128 * 1024 * 1024; // @todo: need to check against device limits
+    mStagingBufferCapacity = 512 * 1024 * 1024; // @todo: need to check against device limits
     mStagingBuffer = Device::Instance()->CreateBuffer({
         .usage     = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         .storage   = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
@@ -34,7 +34,6 @@ void Rhi::StagingDevice::Upload( Util::BufferHandle handle, const void * data, s
     CommandPool::Instance()->Submit( cmdlist, mStagingFence );
 
     mCurrentOffset += size;
-    printf("[Staging Device] Current Offset %llu out of capacity %llu\n", mCurrentOffset, mStagingBufferCapacity );
     
     vkWaitForFences( Device::Instance()->GetDevice(), 1, &mStagingFence, VK_TRUE, UINT64_MAX );
     vkResetFences( Device::Instance()->GetDevice(), 1, &mStagingFence );
@@ -72,7 +71,6 @@ void Rhi::StagingDevice::Upload( Util::TextureHandle handle, const void * data )
     CommandPool::Instance()->Submit( cmdlist, mStagingFence );
 
     mCurrentOffset += size;
-    printf("[Staging Device] Current Offset %llu out of capacity %llu\n", mCurrentOffset, mStagingBufferCapacity );
 
     vkWaitForFences( Device::Instance()->GetDevice(), 1, &mStagingFence, VK_TRUE, UINT64_MAX );
     vkResetFences( Device::Instance()->GetDevice(), 1, &mStagingFence );

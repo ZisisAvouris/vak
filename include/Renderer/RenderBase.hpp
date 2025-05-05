@@ -74,6 +74,21 @@ namespace Rhi {
         return ( format == VK_FORMAT_S8_UINT ) || ( format == VK_FORMAT_D16_UNORM_S8_UINT ) || ( format == VK_FORMAT_D24_UNORM_S8_UINT ) || ( format == VK_FORMAT_D32_SFLOAT_S8_UINT );
     }
 
+    struct SamplerSpecification final {
+        VkFilter             minFilter = VK_FILTER_LINEAR;
+        VkFilter             magFilter = VK_FILTER_LINEAR;
+        VkSamplerAddressMode wrapU     = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+        VkSamplerAddressMode wrapV     = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+        std::string          debugName = "You should name this sampler!";
+    };
+    struct Sampler final {
+        VkSampler sampler;
+    };
+    struct SamplerMetadata final {
+        std::string          debugName = "Sampler: ";
+        SamplerSpecification spec      = {};
+    };
+
     static constexpr uint sMaxVertexAttributes = 8;
     static constexpr uint sMaxVertexBindings   = 8;
     struct VertexSpecification final {

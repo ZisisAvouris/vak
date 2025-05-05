@@ -5,6 +5,13 @@ set(CMAKE_DEBUG_POSTFIX "" CACHE STRING "Remove 'd' postfix from debug builds")
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+set(ASSIMP_BUILD_ASSIMP_TOOLS OFF CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_SAMPLES OFF CACHE BOOL "" FORCE)
+set(ASSIMP_INSTALL ON CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_IFC_IMPORTER OFF CACHE BOOL "" FORCE)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+
 if(MSVC)
     add_compile_options(/W4 /MP /std:c++20 /permissive- /Zi)
     add_compile_definitions(-D_UNICODE -DUNICODE)
@@ -18,10 +25,12 @@ file(GLOB_RECURSE SOURCES
 find_package(Vulkan REQUIRED)
 
 add_executable(vak ${SOURCES})
+target_compile_definitions(vak PRIVATE ASSIMP_BUILD_NO_EXPORT)
 
 add_subdirectory(third-party/volk)
 add_subdirectory(third-party/VulkanMemoryAllocator)
 add_subdirectory(third-party/glm)
+add_subdirectory(third-party/assimp)
 
 target_include_directories(vak PRIVATE "${CMAKE_SOURCE_DIR}/include")
 target_include_directories(vak PRIVATE "${CMAKE_SOURCE_DIR}/third-party/volk")
@@ -35,4 +44,5 @@ target_link_libraries(vak PRIVATE volk)
 target_link_libraries(vak PRIVATE VulkanMemoryAllocator)
 target_link_libraries(vak PRIVATE glm)
 target_link_libraries(vak PRIVATE stb)
+target_link_libraries(vak PRIVATE assimp)
 

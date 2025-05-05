@@ -70,7 +70,7 @@ void Core::WindowManager::InitWindow( void ) {
     ShowCursor( FALSE );
     RecenterCursor();
 
-    Entity::Camera::Instance()->Init( glm::vec3( 0.0f, 0.0f, 5.0f ) );
+    Entity::Camera::Instance()->Init( glm::vec3( 0.0f, 200.0f, -50.0f ) );
 
     LARGE_INTEGER freq;
     QueryPerformanceFrequency( &freq );
@@ -122,7 +122,7 @@ void Core::WindowManager::PollEvents( void ) {
     
         const float dx = static_cast<float>( cursorPos.x - mWindowCenter.x );
         const float dy = static_cast<float>( cursorPos.y - mWindowCenter.y );
-        Entity::Camera::Instance()->ProcessMouseMovement( dx, dy );
+        Entity::Camera::Instance()->ProcessMouseMovement( dx, -dy );
         SetCursorPos( mWindowCenter.x, mWindowCenter.y );
     }
 }

@@ -57,12 +57,15 @@ namespace Rhi {
 
         Util::Pool<Util::_Texture, TextureHot, TextureCold> * GetTexturePool( void ) { return &mTexturePool; }
         Util::Pool<Util::_Buffer, BufferHot, BufferCold> * GetBufferPool( void ) { return &mBufferPool; }
+        Util::Pool<Util::_Sampler, Sampler, SamplerMetadata> * GetSamplerPool( void ) { return &mSamplerPool; }
 
         Util::TextureHandle CreateTexture( const TextureSpecification & );
         Util::BufferHandle  CreateBuffer( const BufferSpecification & );
+        Util::SamplerHandle CreateSampler( const SamplerSpecification & );
 
         void Delete( Util::TextureHandle );
         void Delete( Util::BufferHandle );
+        void Delete( Util::SamplerHandle );
 
         VkImageView CreateImageView( VkImage, VkFormat, VkImageAspectFlags );
 
@@ -83,8 +86,13 @@ namespace Rhi {
         vector<VkFormat>           mDeviceDepthFormats;
         VkSurfaceCapabilitiesKHR   mSurfaceCapabilities;
 
-        Util::Pool<Util::_Texture, TextureHot, TextureCold> mTexturePool{ 128, "Texture" };
-        Util::Pool<Util::_Buffer, BufferHot, BufferCold>    mBufferPool{ 128, "Buffer" };
+        Util::Pool<Util::_Texture, TextureHot, TextureCold>  mTexturePool{ 64, "Texture" };
+        Util::Pool<Util::_Sampler, Sampler, SamplerMetadata> mSamplerPool{ 8, "Sampler" };
+        Util::Pool<Util::_Buffer, BufferHot, BufferCold>     mBufferPool{ 1024, "Buffer" };
+
+        // The dummy textures serves as a placeholder for the bindless array of textures that are not sampled (e.g. swapchain, depth etc),
+        // in order to avoid a sparse array and problems with indices
+        Util::TextureHandle mDummyTexture;
 
         void CreateSurface( void );
 

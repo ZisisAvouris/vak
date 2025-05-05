@@ -26,9 +26,12 @@ namespace Rhi {
 
         void Delete( Util::TextureHandle );
 
-    private:        
+    private:
         uint2 mRenderResolution;
         bool  mIsReady = false;
+
+        glm::mat4 mProjection = glm::mat4( 0.0f );
+        float mNear = 0.1f, mFar = 100.0f, mFov = 60.0f;
 
         VkShaderModule smVert, smFrag;
         RenderPipeline opaquePipeline;
@@ -37,11 +40,12 @@ namespace Rhi {
         Util::BufferHandle vertexBuffer;
         Util::BufferHandle indexBuffer;
 
-        VkSampler sampler;
-        Image                texImage;
-        Util::TextureHandle  texture;
+        Util::SamplerHandle  sampler;
         Util::TextureHandle  depthBuffer;
 
+        Model mModel;
+
+        void ComputeProjectionMatrix( void );
         void DebugPrintStructSizes( void );
 
     };

@@ -17,17 +17,19 @@ namespace Rhi {
         void Init( void );
         void Destroy( void );
 
-        void UpdateDescriptorSets( Util::TextureHandle, VkSampler );
+        void SetUpdateDescriptors( void ) { mShouldUpdateDescriptors = true; }
+        void UpdateDescriptorSets( void );
 
         VkDescriptorSetLayout GetDescriptorSetLayout( void ) const { return mDescriptorLayout; }
         VkDescriptorSet       GetDescriptorSet( void ) const { return mDescriptorSet; }
 
     private:
-        VkDescriptorPool      mDescriptorPool   = VK_NULL_HANDLE;
-        VkDescriptorSet       mDescriptorSet    = VK_NULL_HANDLE;
-        VkDescriptorSetLayout mDescriptorLayout = VK_NULL_HANDLE;
+        VkDescriptorPool      mDescriptorPool          = VK_NULL_HANDLE;
+        VkDescriptorSet       mDescriptorSet           = VK_NULL_HANDLE;
+        VkDescriptorSetLayout mDescriptorLayout        = VK_NULL_HANDLE;
+        bool                  mShouldUpdateDescriptors = true;
 
-        static constexpr ushort sMaxTextures = 128;
-        static constexpr ushort sMaxSamplers = 32;
+        static constexpr ushort sMaxTextures = 64;
+        static constexpr ushort sMaxSamplers = 8;
     };
 }

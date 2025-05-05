@@ -13,10 +13,10 @@ void Rhi::Renderer::Init( uint2 renderResolution ) {
 
     RenderContext::Instance()->Init();
     Device::Instance()->Init();
-    StagingDevice::Instance()->Init();
 
     Swapchain::Instance()->Init();
     Swapchain::Instance()->Resize( mRenderResolution );
+    ComputeProjectionMatrix();
     Descriptors::Instance()->Init();
 
     mIsReady = true;
@@ -24,56 +24,19 @@ void Rhi::Renderer::Init( uint2 renderResolution ) {
     CommandPool::Instance()->Init();
     PipelineFactory::Instance()->Init();
 
-    vector<Vertex> vertexData = {
-        { {-1.0f, -1.0f,  1.0f}, {0.0f, 0.0f} },
-        { { 1.0f, -1.0f,  1.0f}, {1.0f, 0.0f} },
-        { { 1.0f,  1.0f,  1.0f}, {1.0f, 1.0f} },
-        { {-1.0f,  1.0f,  1.0f}, {0.0f, 1.0f} },
-        { { 1.0f, -1.0f, -1.0f}, {0.0f, 0.0f} },
-        { {-1.0f, -1.0f, -1.0f}, {1.0f, 0.0f} },
-        { {-1.0f,  1.0f, -1.0f}, {1.0f, 1.0f} },
-        { { 1.0f,  1.0f, -1.0f}, {0.0f, 1.0f} },
-        { {-1.0f, -1.0f, -1.0f}, {0.0f, 0.0f} },
-        { {-1.0f, -1.0f,  1.0f}, {1.0f, 0.0f} },
-        { {-1.0f,  1.0f,  1.0f}, {1.0f, 1.0f} },
-        { {-1.0f,  1.0f, -1.0f}, {0.0f, 1.0f} },
-        { { 1.0f, -1.0f,  1.0f}, {0.0f, 0.0f} },
-        { { 1.0f, -1.0f, -1.0f}, {1.0f, 0.0f} },
-        { { 1.0f,  1.0f, -1.0f}, {1.0f, 1.0f} },
-        { { 1.0f,  1.0f,  1.0f}, {0.0f, 1.0f} },
-        { {-1.0f,  1.0f,  1.0f}, {0.0f, 0.0f} },
-        { { 1.0f,  1.0f,  1.0f}, {1.0f, 0.0f} },
-        { { 1.0f,  1.0f, -1.0f}, {1.0f, 1.0f} },
-        { {-1.0f,  1.0f, -1.0f}, {0.0f, 1.0f} },
-        { {-1.0f, -1.0f, -1.0f}, {0.0f, 0.0f} },
-        { { 1.0f, -1.0f, -1.0f}, {1.0f, 0.0f} },
-        { { 1.0f, -1.0f,  1.0f}, {1.0f, 1.0f} },
-        { {-1.0f, -1.0f,  1.0f}, {0.0f, 1.0f} },
-    };
-
-    vector<uint32_t> indexData = {
-        0, 2, 1, 0, 3, 2,
-        4, 6, 5, 4, 7, 6,
-        8, 10, 9, 8, 11, 10,
-        12, 14, 13, 12, 15, 14,
-        16, 18, 17, 16, 19, 18,
-        20, 22, 21, 20, 23, 22
-    };
-
-    vertexBuffer = Device::Instance()->CreateBuffer({
-        .usage     = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+    const uint pixel = 0xFFFF00FF;
+    Device::Instance()->CreateTexture({
+        .type      = VK_IMAGE_TYPE_2D,
+        .format    = VK_FORMAT_R8G8B8A8_UNORM,
+        .extent    = { 1, 1, 1 },
+        .usage     = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
         .storage   = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        .size      = vertexData.size() * sizeof( Vertex ),
-        .ptr       = vertexData.data(),
-        .debugName = "Vertex" 
+        .data      = &pixel,
+        .debugName = "Dummy"
     });
-    indexBuffer = Device::Instance()->CreateBuffer({
-        .usage     = VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-        .storage   = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        .size      = indexData.size() * sizeof( Vertex ),
-        .ptr       = indexData.data(),
-        .debugName = "Index" 
-    });
+    assert( Device::Instance()->GetTexturePool()->GetEntryCount() == 1 );
+
+    assert( mModel.LoadModelFromFile( "assets/models/sponza/sponza.obj", aiProcess_FlipUVs ) );
 
     vertexShader = Resource::LoadShader( "assets/shaders/shader.vert.spv" );
     fragmentShader = Resource::LoadShader( "assets/shaders/shader.frag.spv" );
@@ -105,17 +68,6 @@ void Rhi::Renderer::Init( uint2 renderResolution ) {
         .cullMode       = VK_CULL_MODE_BACK_BIT
     });
 
-    texImage = LoadTexture( "assets/textures/wood.jpg" );
-    texture  = Device::Instance()->CreateTexture({
-        .type      = VK_IMAGE_TYPE_2D,
-        .format    = VK_FORMAT_R8G8B8A8_UNORM,
-        .extent    = { texImage.width, texImage.height, 1 },
-        .usage     = VK_IMAGE_USAGE_SAMPLED_BIT,
-        .data      = texImage.data,
-        .debugName = "Wood"
-    });
-    stbi_image_free( texImage.data );
-
     depthBuffer = Device::Instance()->CreateTexture({
         .type      = VK_IMAGE_TYPE_2D,
         .format    = VK_FORMAT_D32_SFLOAT,
@@ -125,25 +77,12 @@ void Rhi::Renderer::Init( uint2 renderResolution ) {
         .debugName = "Depth"
     });
 
-    VkSamplerCreateInfo samplerCI = {
-        .sType            = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-        .magFilter        = VK_FILTER_LINEAR,
-        .minFilter        = VK_FILTER_LINEAR,
-        .mipmapMode       = VK_SAMPLER_MIPMAP_MODE_LINEAR,
-        .addressModeU     = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
-        .addressModeV     = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
-        .addressModeW     = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-        .mipLodBias       = .0f,
-        .anisotropyEnable = VK_TRUE,
-        .maxAnisotropy    = 16.0f,
-        .compareOp        = VK_COMPARE_OP_NEVER,
-        .minLod           = .0f,
-        .maxLod           = .0f,
-        .borderColor      = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK
-    };
-    vkCreateSampler( Device::Instance()->GetDevice(), &samplerCI, nullptr, &sampler );
-
-    Descriptors::Instance()->UpdateDescriptorSets( texture, sampler );
+    SamplerMetadata smd = { "Default" };
+    sampler = Device::Instance()->CreateSampler({
+        .wrapU     = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+        .wrapV     = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+        .debugName = "Default"
+    });
 }
 
 void Rhi::Renderer::Destroy( void ) {
@@ -154,8 +93,6 @@ void Rhi::Renderer::Destroy( void ) {
 
     vkDestroyShaderModule( Device::Instance()->GetDevice(), smVert, nullptr );
     vkDestroyShaderModule( Device::Instance()->GetDevice(), smFrag, nullptr );
-
-    vkDestroySampler( Device::Instance()->GetDevice(), sampler, nullptr );
     
     PipelineFactory::Instance()->Destroy();
     CommandPool::Instance()->Destroy();
@@ -173,6 +110,7 @@ void Rhi::Renderer::Resize( uint2 newResolution ) {
     mRenderResolution = newResolution;
     vkDeviceWaitIdle( Device::Instance()->GetDevice() );
 
+    ComputeProjectionMatrix();
     Device::Instance()->Delete( depthBuffer );
     depthBuffer = Device::Instance()->CreateTexture({
         .type      = VK_IMAGE_TYPE_2D,
@@ -189,31 +127,42 @@ void Rhi::Renderer::Render( glm::mat4 view, float deltaTime ) {
     auto [image, imageView] = Swapchain::Instance()->AcquireImage();
     CommandList * cmdlist = CommandPool::Instance()->AcquireCommandList();
 
-    static float angle = 0.0f;
-    angle += 90.0f * deltaTime;
-    angle = fmodf( angle, 360.0f );
-
-    glm::mat4 model = glm::rotate( glm::mat4(1.0f), glm::radians(angle), glm::vec3(1.0f, 1.0f, 1.0f) );
-    glm::mat4 projection = glm::perspectiveRH_ZO( glm::radians(45.0f), mRenderResolution.x / static_cast<float>(mRenderResolution.y), 100.0f, 0.1f );
-
-    struct PushConstantsBuf {
-        glm::mat4 mvp;
-    } pc = {
-        .mvp = projection * view * model
-    };
-    
+    Descriptors::Instance()->UpdateDescriptorSets();
     cmdlist->BeginRendering( mRenderResolution, image, imageView, depthBuffer );
         cmdlist->BindRenderPipeline( opaquePipeline );
-        cmdlist->BindVertexBuffer( vertexBuffer );
-        cmdlist->BindIndexBuffer( indexBuffer );
-        cmdlist->PushConstants( &pc, sizeof(PushConstantsBuf) );
+        for ( uint i = 0; i < mModel.GetMeshCount(); ++i ) {
 
-        BufferHot * hot = Device::Instance()->GetBufferPool()->GetHot( indexBuffer );
-        cmdlist->DrawIndexed( static_cast<uint>( hot->size ) / sizeof(uint) );
+            cmdlist->BindVertexBuffer( mModel.GetVertexBuffer( i ) );
+            cmdlist->BindIndexBuffer( mModel.GetIndexBuffer( i ) );
+
+            struct PushConstantsBuf {
+                glm::mat4 mvp;
+                uint      textureId;
+            } pc = {
+                .mvp       = mProjection * view,
+                .textureId = mModel.GetTextureId( i ) 
+            };
+            cmdlist->PushConstants( &pc, sizeof( PushConstantBuf ) );
+            cmdlist->DrawIndexed( mModel.GetIndexCount( i ) );
+        }
     cmdlist->EndRendering();
     
     CommandPool::Instance()->Submit( cmdlist, image );
     Swapchain::Instance()->Present();
+}
+
+void Rhi::Renderer::ComputeProjectionMatrix( void ) {
+    // This computes a projection matrix with an infinite far plane for a reverse z buffer
+    const float f = 1.0f / tanf( glm::radians( mFov ) / 2.0f );
+    mProjection[0][0] = f / ( static_cast<float>( mRenderResolution.x ) / mRenderResolution.y );
+    mProjection[1][1] = -f;
+    mProjection[2][2] = 0.0f;
+    mProjection[2][3] = -1.0f;
+    mProjection[3][2] = mNear;
+
+    // alternatively use this, but the far plane may be culling geometry and require a huge zFar
+    // mProjection = glm::perspectiveRH_ZO( glm::radians(45.0f), mRenderResolution.x / static_cast<float>(mRenderResolution.y), mFar, mNear );
+    // mProjection[1][1] *= -1.0f;
 }
 
 void Rhi::Renderer::DebugPrintStructSizes( void ) {

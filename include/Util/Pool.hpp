@@ -37,6 +37,7 @@ namespace Util {
     using BufferHandle         = Handle<struct _Buffer>;
     using ShaderHandle         = Handle<struct _Shader>;
     using RenderPipelineHander = Handle<struct _RenderPipeline>;
+    using ModelHandle          = Handle<struct _Model>;
 
     template<typename Type, typename HotType, typename ColdType> class Pool final {
     private:
@@ -65,15 +66,15 @@ namespace Util {
     public:
         explicit Pool( uint entries, const char * resourceType = "UNDEFINED" ) {
             assert( entries > 0 && entries < UINT32_MAX );
-            mEntries = entries;
+            mEntries = 0;
 
-            mHotObjects.resize( mEntries );
-            mColdObjects.resize( mEntries );
+            mHotObjects.resize( entries );
+            mColdObjects.resize( entries );
 
             // Populate the free list so that the lowest indices are used first
-            for ( uint i = mEntries; i-- > 0; )
+            for ( uint i = entries; i-- > 0; )
                 mFreeList.push( i );
-            printf("[INFO] Created %s Pool with %u entries!\n", resourceType, mEntries);
+            printf("[INFO] Created %s Pool with %u entries!\n", resourceType, entries);
         }
 
         Handle<Type> Create( HotType && hot, ColdType && cold ) {

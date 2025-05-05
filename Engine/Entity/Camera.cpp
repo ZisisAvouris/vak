@@ -2,9 +2,9 @@
 
 void Entity::Camera::Init( glm::vec3 startPosition ) {
     mPosition    = startPosition;
-    mYaw         = -90.0f;
+    mYaw         = 0.0f;
     mPitch       = 0.0f;
-    mMoveSpeed   = 25.0f;
+    mMoveSpeed   = 200.0f;
     mSensitivity = 0.1f;
     UpdateCameraVectors();
 }

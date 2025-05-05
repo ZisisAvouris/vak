@@ -42,7 +42,7 @@ namespace Core {
         HWND      mWindowHandle = nullptr;
         HINSTANCE mWinInstance  = nullptr;
 
-        uint2     mWinResolution = { 800, 600 }; 
+        uint2     mWinResolution = { 1600, 900 }; 
         bool      mShouldClose   = false;
 
         LARGE_INTEGER mLastTime;

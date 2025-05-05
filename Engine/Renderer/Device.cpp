@@ -1,4 +1,5 @@
 #include <Renderer/Device.hpp>
+#include <Renderer/Descriptors.hpp>
 
 void Rhi::Device::Init( void ) {
     CreateSurface();
@@ -14,6 +15,8 @@ void Rhi::Device::Init( void ) {
         .vulkanApiVersion = VK_API_VERSION_1_4
     };
     assert( vmaCreateAllocator( &aci, &mVma ) == VK_SUCCESS );
+
+    StagingDevice::Instance()->Init();
 }
 
 void Rhi::Device::Destroy( void ) {
@@ -23,6 +26,10 @@ void Rhi::Device::Destroy( void ) {
     }
     for ( uint i = 0; i < mBufferPool.GetObjectCount(); ++i ) {
         Util::BufferHandle handle = mBufferPool.GetHandle( i );
+        if ( handle.Valid() ) Delete( handle );
+    }
+    for ( uint i = 0; i < mSamplerPool.GetObjectCount(); ++i ) {
+        Util::SamplerHandle handle = mSamplerPool.GetHandle( i );
         if ( handle.Valid() ) Delete( handle );
     }
 
@@ -168,7 +175,6 @@ Util::TextureHandle Rhi::Device::CreateTexture( const TextureSpecification & spe
         .isStencil = isStencilFormat( spec.format )
     };
     coldResult.debugName += spec.debugName;
-    printf( "[Texture Pool] Creating %s\n", coldResult.debugName.c_str() );
 
     VkImageCreateInfo ci = {
         .sType                 = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
@@ -205,6 +211,7 @@ Util::TextureHandle Rhi::Device::CreateTexture( const TextureSpecification & spe
     if ( spec.data ) {
         StagingDevice::Instance()->Upload( handle, spec.data );
     }
+    Descriptors::Instance()->SetUpdateDescriptors();
     return handle;
 }
 
@@ -214,8 +221,6 @@ void Rhi::Device::Delete( Util::TextureHandle handle ) {
 
     if ( !hot || !cold )
         return;
-    if ( cold->debugName != "Texture: " )
-        printf( "[Texture Pool] Deleting %s\n", cold->debugName.c_str() );
     vkDestroyImageView( mLogicalDevice, hot->view, nullptr );
     if ( cold->ptr )          vmaUnmapMemory( mVma, cold->alloc );
     if ( !cold->isSwapchain ) vmaDestroyImage( mVma, hot->image, cold->alloc );
@@ -230,7 +235,6 @@ Util::BufferHandle Rhi::Device::CreateBuffer( const BufferSpecification & spec )
     };
     BufferCold coldResult = {};
     coldResult.debugName += spec.debugName;
-    printf( "[Buffer Pool] Creating %s\n", coldResult.debugName.c_str() );
 
     VkBufferUsageFlags usageFlags = spec.usage;
     if ( hotResult.storage & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT )
@@ -274,11 +278,41 @@ void Rhi::Device::Delete( Util::BufferHandle handle ) {
     BufferCold * cold = mBufferPool.GetCold( handle );
     if ( !hot || !cold )
         return;
-    if ( cold->debugName != "Buffer: " )
-        printf( "[Buffer Pool] Deleting %s\n", cold->debugName.c_str() );
     if ( cold->ptr ) vmaUnmapMemory( mVma, cold->alloc );
     vmaDestroyBuffer( mVma, hot->buf, cold->alloc );
     mBufferPool.Delete( handle );
+}
+
+Util::SamplerHandle Rhi::Device::CreateSampler( const SamplerSpecification & spec ) {
+    VkSamplerCreateInfo ci = {
+        .sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+        .magFilter               = spec.magFilter,
+        .minFilter               = spec.minFilter,
+        .mipmapMode              = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+        .addressModeU            = spec.wrapU,
+        .addressModeV            = spec.wrapV,
+        .addressModeW            = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+        .mipLodBias              = .0f,
+        .anisotropyEnable        = VK_TRUE,
+        .maxAnisotropy           = 16.0f,
+        .compareOp               = VK_COMPARE_OP_NEVER,
+        .minLod                  = .0f,
+        .maxLod                  = .0f,
+        .borderColor             = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE
+    };
+    Sampler sampler;
+    assert( vkCreateSampler( mLogicalDevice, &ci, nullptr, &sampler.sampler ) == VK_SUCCESS );
+    SamplerMetadata metadata = { .spec = spec };
+    metadata.debugName += spec.debugName;
+    Descriptors::Instance()->SetUpdateDescriptors();
+    return mSamplerPool.Create( std::move( sampler ), std::move( metadata ) );
+}
+
+void Rhi::Device::Delete( Util::SamplerHandle handle ) {
+    Sampler * sampler = mSamplerPool.GetHot( handle );
+    if ( !sampler )
+        return;
+    vkDestroySampler( mLogicalDevice, sampler->sampler, nullptr );
 }
 
 VkImageView Rhi::Device::CreateImageView( VkImage image, VkFormat format, VkImageAspectFlags aspect ) {
