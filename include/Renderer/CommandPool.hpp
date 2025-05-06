@@ -38,6 +38,9 @@ namespace Rhi {
 
         void PushConstants( const void *, uint );
 
+        void BeginDebugLabel( const char *, const float (&)[4] );
+        void EndDebugLabel( void );
+
     private:
         friend class CommandPool;
         VkCommandBuffer mBuf = VK_NULL_HANDLE;

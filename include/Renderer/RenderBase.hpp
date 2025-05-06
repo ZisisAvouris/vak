@@ -11,15 +11,6 @@
 namespace Rhi {
     // @todo: Revisit this split of hot and cold data for every resource
 
-    // struct Buffer final {
-    //     VkBuffer              buf     = VK_NULL_HANDLE;
-    //     VkDeviceMemory        mem     = VK_NULL_HANDLE;
-    //     VmaAllocation         alloc   = VK_NULL_HANDLE;
-    //     VkDeviceSize          size    = 0;
-    //     VkBufferUsageFlags    usage   = 0;
-    //     VkMemoryPropertyFlags storage = 0;
-    //     void *                ptr     = nullptr;
-    // };
     struct BufferSpecification final {
         VkBufferUsageFlags    usage   = 0;
         VkMemoryPropertyFlags storage = 0;

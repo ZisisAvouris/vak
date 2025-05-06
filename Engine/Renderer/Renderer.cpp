@@ -130,6 +130,7 @@ void Rhi::Renderer::Render( glm::mat4 view, float deltaTime ) {
     Descriptors::Instance()->UpdateDescriptorSets();
     cmdlist->BeginRendering( mRenderResolution, image, imageView, depthBuffer );
         cmdlist->BindRenderPipeline( opaquePipeline );
+        cmdlist->BeginDebugLabel( "Sponza", { 1.0f, 0.0f, 1.0f, 1.0f } );
         for ( uint i = 0; i < mModel.GetMeshCount(); ++i ) {
 
             cmdlist->BindVertexBuffer( mModel.GetVertexBuffer( i ) );
@@ -145,6 +146,7 @@ void Rhi::Renderer::Render( glm::mat4 view, float deltaTime ) {
             cmdlist->PushConstants( &pc, sizeof( PushConstantBuf ) );
             cmdlist->DrawIndexed( mModel.GetIndexCount( i ) );
         }
+        cmdlist->EndDebugLabel();
     cmdlist->EndRendering();
     
     CommandPool::Instance()->Submit( cmdlist, image );

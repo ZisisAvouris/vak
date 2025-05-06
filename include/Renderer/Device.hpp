@@ -99,6 +99,8 @@ namespace Rhi {
         void PickPhysicalDevice( VkPhysicalDeviceType );
         void CreateLogicalDevice( void );
 
+        void RegisterDebugObjectName( VkObjectType, ulong, const std::string & );
+
         uint FindQueueFamilyIndex( VkQueueFlags );
     };
 

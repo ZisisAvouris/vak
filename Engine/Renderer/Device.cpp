@@ -145,6 +145,16 @@ void Rhi::Device::CreateLogicalDevice( void ) {
     vkGetDeviceQueue( mLogicalDevice, mQueueFamilyIndex.graphics, 0, &mQueues.graphics );
 }
 
+void Rhi::Device::RegisterDebugObjectName( VkObjectType type, ulong handle, const std::string & name ) {
+    VkDebugUtilsObjectNameInfoEXT ci = {
+        .sType        = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+        .objectType   = type,
+        .objectHandle = handle,
+        .pObjectName  = name.c_str()
+    };
+    assert( vkSetDebugUtilsObjectNameEXT( mLogicalDevice, &ci ) == VK_SUCCESS );
+};
+
 uint Rhi::Device::FindQueueFamilyIndex( VkQueueFlags flags ) {
     uint queueFamilyCount = 0;
     vkGetPhysicalDeviceQueueFamilyProperties( mPhysicalDevice, &queueFamilyCount, nullptr );
@@ -193,6 +203,7 @@ Util::TextureHandle Rhi::Device::CreateTexture( const TextureSpecification & spe
     };
     VmaAllocationCreateInfo ai = { .usage = spec.storage & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT ? VMA_MEMORY_USAGE_CPU_TO_GPU : VMA_MEMORY_USAGE_AUTO };
     assert( vmaCreateImage( mVma, &ci, &ai, &hotResult.image, &coldResult.alloc, nullptr ) == VK_SUCCESS );
+    RegisterDebugObjectName( VK_OBJECT_TYPE_IMAGE, (ulong)hotResult.image, coldResult.debugName + " IMAGE" );
 
     if ( spec.storage & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT ) {
         vmaMapMemory( mVma, coldResult.alloc, &coldResult.ptr );
@@ -207,6 +218,8 @@ Util::TextureHandle Rhi::Device::CreateTexture( const TextureSpecification & spe
     }
 
     hotResult.view = CreateImageView( hotResult.image, spec.format, aspect );
+    RegisterDebugObjectName( VK_OBJECT_TYPE_IMAGE_VIEW, (ulong)hotResult.view, coldResult.debugName + " VIEW" );
+
     Util::TextureHandle handle = mTexturePool.Create( std::move( hotResult ), std::move( coldResult ) );
     if ( spec.data ) {
         StagingDevice::Instance()->Upload( handle, spec.data );
@@ -264,6 +277,8 @@ Util::BufferHandle Rhi::Device::CreateBuffer( const BufferSpecification & spec )
     allocCI.usage = VMA_MEMORY_USAGE_AUTO;
     vmaCreateBuffer( mVma, &ci, &allocCI, &hotResult.buf, &coldResult.alloc, nullptr );
 
+    RegisterDebugObjectName( VK_OBJECT_TYPE_BUFFER, (ulong)hotResult.buf, coldResult.debugName );
+
     if ( hotResult.storage & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT )
         vmaMapMemory( mVma, coldResult.alloc, &coldResult.ptr );
 
@@ -302,8 +317,12 @@ Util::SamplerHandle Rhi::Device::CreateSampler( const SamplerSpecification & spe
     };
     Sampler sampler;
     assert( vkCreateSampler( mLogicalDevice, &ci, nullptr, &sampler.sampler ) == VK_SUCCESS );
+
     SamplerMetadata metadata = { .spec = spec };
     metadata.debugName += spec.debugName;
+
+    RegisterDebugObjectName( VK_OBJECT_TYPE_SAMPLER, (ulong)sampler.sampler, metadata.debugName );
+
     Descriptors::Instance()->SetUpdateDescriptors();
     return mSamplerPool.Create( std::move( sampler ), std::move( metadata ) );
 }

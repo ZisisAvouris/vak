@@ -145,3 +145,16 @@ void Rhi::CommandList::PushConstants( const void * data, uint size ) {
     assert( mBoundRP );
     vkCmdPushConstants( mBuf, mBoundRP->layout, mBoundRP->shaderStage, 0, size, data );
 }
+
+void Rhi::CommandList::BeginDebugLabel( const char * name, const float (& color)[4] ) {
+    const VkDebugUtilsLabelEXT label = {
+        .sType      = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
+        .pLabelName = name,
+        .color      = { color[0], color[1], color[2], color[3] }
+    };
+    vkCmdBeginDebugUtilsLabelEXT( mBuf, &label );
+}
+
+void Rhi::CommandList::EndDebugLabel() {
+    vkCmdEndDebugUtilsLabelEXT( mBuf );
+}
