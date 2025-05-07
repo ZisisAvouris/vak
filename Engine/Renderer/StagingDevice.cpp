@@ -22,7 +22,7 @@ void Rhi::StagingDevice::Destroy( void ) {
 }
 
 void Rhi::StagingDevice::Upload( Util::BufferHandle handle, const void * data, size_t size ) {
-    BufferCold * staging = Device::Instance()->GetBufferPool()->GetCold( mStagingBuffer );
+    BufferMetadata * staging = Device::Instance()->GetBufferPool()->GetMetadata( mStagingBuffer );
 
     memcpy( static_cast<_byte *>( staging->ptr ) + mCurrentOffset, data, size );
     assert( mCurrentOffset < mStagingBufferCapacity );
@@ -40,15 +40,15 @@ void Rhi::StagingDevice::Upload( Util::BufferHandle handle, const void * data, s
 }
 
 void Rhi::StagingDevice::Upload( Util::TextureHandle handle, const void * data ) {
-    BufferCold * staging = Device::Instance()->GetBufferPool()->GetCold( mStagingBuffer );
-    TextureHot * hot = Device::Instance()->GetTexturePool()->GetHot( handle );
+    BufferMetadata * staging = Device::Instance()->GetBufferPool()->GetMetadata( mStagingBuffer );
+    Texture * tex = Device::Instance()->GetTexturePool()->Get( handle );
 
-    const uint size = hot->extent.width * hot->extent.height * 4;
+    const uint size = tex->extent.width * tex->extent.height * 4;
     memcpy( static_cast<_byte *>( staging->ptr ) + mCurrentOffset, data, size );
     assert( mCurrentOffset < mStagingBufferCapacity );
 
     CommandList * cmdlist = CommandPool::Instance()->AcquireCommandList();
-        cmdlist->ImageBarrier( hot->image, { .stage = VK_PIPELINE_STAGE_2_TRANSFER_BIT, .access = VK_ACCESS_2_TRANSFER_WRITE_BIT },
+        cmdlist->ImageBarrier( tex->image, { .stage = VK_PIPELINE_STAGE_2_TRANSFER_BIT, .access = VK_ACCESS_2_TRANSFER_WRITE_BIT },
             { .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, .access = VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT },
             VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL );
         VkBufferImageCopy copy = {
@@ -62,10 +62,10 @@ void Rhi::StagingDevice::Upload( Util::TextureHandle handle, const void * data )
                 .layerCount     = 1
             },
             .imageOffset = { 0, 0, 0 },
-            .imageExtent = hot->extent
+            .imageExtent = tex->extent
         };
-        cmdlist->Copy( mStagingBuffer, hot->image, &copy );
-        cmdlist->ImageBarrier( hot->image, { .stage = VK_PIPELINE_STAGE_2_TRANSFER_BIT, .access = VK_ACCESS_2_TRANSFER_WRITE_BIT },
+        cmdlist->Copy( mStagingBuffer, tex->image, &copy );
+        cmdlist->ImageBarrier( tex->image, { .stage = VK_PIPELINE_STAGE_2_TRANSFER_BIT, .access = VK_ACCESS_2_TRANSFER_WRITE_BIT },
             { .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, .access = VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT },
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL );
     CommandPool::Instance()->Submit( cmdlist, mStagingFence );

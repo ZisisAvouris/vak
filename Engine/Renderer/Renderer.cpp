@@ -36,7 +36,7 @@ void Rhi::Renderer::Init( uint2 renderResolution ) {
     });
     assert( Device::Instance()->GetTexturePool()->GetEntryCount() == 1 );
 
-    assert( mModel.LoadModelFromFile( "assets/models/sponza/sponza.obj", aiProcess_FlipUVs ) );
+    assert( mModel.LoadModelFromFile( "assets/models/sponza/sponza.obj", aiProcess_FlipUVs | aiProcess_GenSmoothNormals ) );
 
     vertexShader = Resource::LoadShader( "assets/shaders/shader.vert.spv" );
     fragmentShader = Resource::LoadShader( "assets/shaders/shader.frag.spv" );
@@ -59,7 +59,8 @@ void Rhi::Renderer::Init( uint2 renderResolution ) {
     opaquePipeline = PipelineFactory::Instance()->CreateRenderPipeline({
         .vertexSpec     = {
             .attributes = { { .location = 0, .format = VK_FORMAT_R32G32B32_SFLOAT, .offset = offsetof( Vertex, position ) },
-                            { .location = 1, .format = VK_FORMAT_R32G32_SFLOAT,    .offset = offsetof( Vertex, uv ) }
+                            { .location = 1, .format = VK_FORMAT_R32G32B32_SFLOAT, .offset = offsetof( Vertex, normal ) },
+                            { .location = 2, .format = VK_FORMAT_R32G32_SFLOAT,    .offset = offsetof( Vertex, uv ) }
             },
             .bindings = { { .stride = sizeof( Vertex ) } }
         },
@@ -82,6 +83,32 @@ void Rhi::Renderer::Init( uint2 renderResolution ) {
         .wrapU     = VK_SAMPLER_ADDRESS_MODE_REPEAT,
         .wrapV     = VK_SAMPLER_ADDRESS_MODE_REPEAT,
         .debugName = "Default"
+    });
+
+    vector<Entity::PointLight> pointLights = {
+        Entity::PointLight {
+            .position  = glm::vec3( -300.0f, 200.0f, 0.0f ),
+            .color     = glm::vec3( 1.0f, 0.0f, 0.0f ),
+            .intensity = 10.0f,
+            .linear    = 0.002f,
+            .quadratic = 0.00005f
+        },
+        Entity::PointLight {
+            .position  = glm::vec3( 300.0f, 200.0f, 0.0f ),
+            .color     = glm::vec3( 0.0f, 0.0f, 1.0f ),
+            .intensity = 10.0f,
+            .linear    = 0.002f,
+            .quadratic = 0.00005f
+        }
+    };
+    lightCount = pointLights.size();
+
+    lightBuffer = Device::Instance()->CreateBuffer({
+        .usage     = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+        .storage   = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        .size      = lightCount * sizeof( Entity::PointLight ),
+        .ptr       = pointLights.data(),
+        .debugName = "Point Lights"
     });
 }
 
@@ -123,7 +150,7 @@ void Rhi::Renderer::Resize( uint2 newResolution ) {
     Swapchain::Instance()->Resize( mRenderResolution );
 }
 
-void Rhi::Renderer::Render( glm::mat4 view, float deltaTime ) {
+void Rhi::Renderer::Render( glm::vec3 cameraPosition, glm::mat4 view, float deltaTime ) {
     auto [image, imageView] = Swapchain::Instance()->AcquireImage();
     CommandList * cmdlist = CommandPool::Instance()->AcquireCommandList();
 
@@ -139,11 +166,19 @@ void Rhi::Renderer::Render( glm::mat4 view, float deltaTime ) {
             struct PushConstantsBuf {
                 glm::mat4 mvp;
                 uint      textureId;
+                uint      lightCount;
+                ulong     lightBuffer;
+                glm::vec3 cameraPosition;
             } pc = {
-                .mvp       = mProjection * view,
-                .textureId = mModel.GetTextureId( i ) 
+                .mvp            = mProjection * view,
+                .textureId      = mModel.GetTextureId( i ),
+                .lightCount     = lightCount,
+                .lightBuffer    = Device::Instance()->DeviceAddress( lightBuffer ),
+                .cameraPosition = cameraPosition
             };
-            cmdlist->PushConstants( &pc, sizeof( PushConstantBuf ) );
+            static_assert( sizeof( PushConstantsBuf ) <= 128 );
+
+            cmdlist->PushConstants( &pc, sizeof( PushConstantsBuf ) );
             cmdlist->DrawIndexed( mModel.GetIndexCount( i ) );
         }
         cmdlist->EndDebugLabel();
@@ -168,8 +203,10 @@ void Rhi::Renderer::ComputeProjectionMatrix( void ) {
 }
 
 void Rhi::Renderer::DebugPrintStructSizes( void ) {
-    printf( "[DEBUG] TextureHot  size: %llu\n", sizeof( TextureHot ) );
-    printf( "[DEBUG] TextureCold size: %llu\n", sizeof( TextureCold ) );
-    printf( "[DEBUG] BufferHot   size: %llu\n", sizeof( BufferHot ) );
-    printf( "[DEBUG] BufferCold  size: %llu\n", sizeof( BufferCold ) );
+    printf( "[DEBUG] TextureHot      size: %llu\n", sizeof( Texture ) );
+    printf( "[DEBUG] TextureCold     size: %llu\n", sizeof( TextureMetadata ) );
+    printf( "[DEBUG] Buffer          size: %llu\n", sizeof( Buffer ) );
+    printf( "[DEBUG] BufferMetadata  size: %llu\n", sizeof( BufferMetadata ) );
+    printf( "[DEBUG] Sampler         size: %llu\n", sizeof( Sampler ) );
+    printf( "[DEBUG] SamplerMetadata size: %llu\n", sizeof( SamplerMetadata ) );
 }

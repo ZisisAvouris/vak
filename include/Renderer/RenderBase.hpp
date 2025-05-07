@@ -18,13 +18,14 @@ namespace Rhi {
         void                 *ptr     = 0;
         std::string debugName = "You should name this buffer!";
     };
-    struct BufferHot final {
+    struct Buffer final {
         VkBuffer              buf     = VK_NULL_HANDLE;
         VkDeviceSize          size    = 0;
         VkBufferUsageFlags    usage   = 0;
         VkMemoryPropertyFlags storage = 0;
+        VkDeviceAddress       address = 0;
     };
-    struct BufferCold final {
+    struct BufferMetadata final {
         std::string    debugName = "Buffer: ";
         VmaAllocation  alloc     = VK_NULL_HANDLE;
         void          *ptr       = nullptr;
@@ -40,7 +41,7 @@ namespace Rhi {
         bool                  isSwapchain = false;
         std::string           debugName   = "You should name this texture!";
     };
-    struct TextureHot final {
+    struct Texture final {
         VkImage           image  = VK_NULL_HANDLE;
         VkImageView       view   = VK_NULL_HANDLE;
         VkExtent3D        extent = { 0, 0, 0 };
@@ -49,7 +50,7 @@ namespace Rhi {
         VkImageLayout     layout = VK_IMAGE_LAYOUT_UNDEFINED;
         VkImageUsageFlags usage  = 0;
     };
-    struct TextureCold final {
+    struct TextureMetadata final {
         std::string    debugName   = "Texture: ";
         VmaAllocation  alloc       = VK_NULL_HANDLE;
         void          *ptr         = nullptr;

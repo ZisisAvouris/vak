@@ -8,7 +8,7 @@ void Rhi::Device::Init( void ) {
     CreateLogicalDevice();
 
     VmaAllocatorCreateInfo aci = {
-        .flags            = VMA_ALLOCATOR_CREATE_EXT_MEMORY_BUDGET_BIT,
+        .flags            = VMA_ALLOCATOR_CREATE_EXT_MEMORY_BUDGET_BIT | VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
         .physicalDevice   = mPhysicalDevice,
         .device           = mLogicalDevice,
         .instance         = RenderContext::Instance()->GetVulkanInstance(),
@@ -121,7 +121,8 @@ void Rhi::Device::CreateLogicalDevice( void ) {
         .descriptorBindingUpdateUnusedWhilePending    = VK_TRUE,
         .descriptorBindingPartiallyBound              = VK_TRUE,
         .runtimeDescriptorArray                       = VK_TRUE,
-        .timelineSemaphore                            = VK_TRUE
+        .timelineSemaphore                            = VK_TRUE,
+        .bufferDeviceAddress                          = VK_TRUE
     };
 
     VkPhysicalDeviceVulkan13Features vkFeatures13 = { // Vulkan 1.3 features we need
@@ -174,17 +175,17 @@ Util::TextureHandle Rhi::Device::CreateTexture( const TextureSpecification & spe
     VkImageUsageFlags usageFlags = ( spec.storage == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT ) ? VK_IMAGE_USAGE_TRANSFER_DST_BIT : 0;
     usageFlags |= spec.usage;
 
-    TextureHot hotResult = {
+    Texture tex = {
         .extent = spec.extent,
         .type   = spec.type,
         .format = spec.format,
         .usage  = spec.usage
     };
-    TextureCold coldResult = {
+    TextureMetadata metadata = {
         .isDepth   = isDepthFormat( spec.format ),
         .isStencil = isStencilFormat( spec.format )
     };
-    coldResult.debugName += spec.debugName;
+    metadata.debugName += spec.debugName;
 
     VkImageCreateInfo ci = {
         .sType                 = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
@@ -202,25 +203,25 @@ Util::TextureHandle Rhi::Device::CreateTexture( const TextureSpecification & spe
         .initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED,
     };
     VmaAllocationCreateInfo ai = { .usage = spec.storage & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT ? VMA_MEMORY_USAGE_CPU_TO_GPU : VMA_MEMORY_USAGE_AUTO };
-    assert( vmaCreateImage( mVma, &ci, &ai, &hotResult.image, &coldResult.alloc, nullptr ) == VK_SUCCESS );
-    RegisterDebugObjectName( VK_OBJECT_TYPE_IMAGE, (ulong)hotResult.image, coldResult.debugName + " IMAGE" );
+    assert( vmaCreateImage( mVma, &ci, &ai, &tex.image, &metadata.alloc, nullptr ) == VK_SUCCESS );
+    RegisterDebugObjectName( VK_OBJECT_TYPE_IMAGE, (ulong)tex.image, metadata.debugName + " IMAGE" );
 
     if ( spec.storage & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT ) {
-        vmaMapMemory( mVma, coldResult.alloc, &coldResult.ptr );
+        vmaMapMemory( mVma, metadata.alloc, &metadata.ptr );
     }
 
     VkImageAspectFlags aspect = 0;
-    if ( coldResult.isDepth || coldResult.isStencil ) {
-        if ( coldResult.isDepth )   aspect |= VK_IMAGE_ASPECT_DEPTH_BIT;
-        if ( coldResult.isStencil ) aspect |= VK_IMAGE_ASPECT_STENCIL_BIT;
+    if ( metadata.isDepth || metadata.isStencil ) {
+        if ( metadata.isDepth )   aspect |= VK_IMAGE_ASPECT_DEPTH_BIT;
+        if ( metadata.isStencil ) aspect |= VK_IMAGE_ASPECT_STENCIL_BIT;
     } else {
         aspect = VK_IMAGE_ASPECT_COLOR_BIT;
     }
 
-    hotResult.view = CreateImageView( hotResult.image, spec.format, aspect );
-    RegisterDebugObjectName( VK_OBJECT_TYPE_IMAGE_VIEW, (ulong)hotResult.view, coldResult.debugName + " VIEW" );
+    tex.view = CreateImageView( tex.image, spec.format, aspect );
+    RegisterDebugObjectName( VK_OBJECT_TYPE_IMAGE_VIEW, (ulong)tex.view, metadata.debugName + " VIEW" );
 
-    Util::TextureHandle handle = mTexturePool.Create( std::move( hotResult ), std::move( coldResult ) );
+    Util::TextureHandle handle = mTexturePool.Create( std::move( tex ), std::move( metadata ) );
     if ( spec.data ) {
         StagingDevice::Instance()->Upload( handle, spec.data );
     }
@@ -229,72 +230,80 @@ Util::TextureHandle Rhi::Device::CreateTexture( const TextureSpecification & spe
 }
 
 void Rhi::Device::Delete( Util::TextureHandle handle ) {
-    TextureHot * hot = mTexturePool.GetHot( handle );
-    TextureCold * cold = mTexturePool.GetCold( handle );
+    Texture * tex = mTexturePool.Get( handle );
+    TextureMetadata * metadata = mTexturePool.GetMetadata( handle );
 
-    if ( !hot || !cold )
+    if ( !tex || !metadata )
         return;
-    vkDestroyImageView( mLogicalDevice, hot->view, nullptr );
-    if ( cold->ptr )          vmaUnmapMemory( mVma, cold->alloc );
-    if ( !cold->isSwapchain ) vmaDestroyImage( mVma, hot->image, cold->alloc );
+    vkDestroyImageView( mLogicalDevice, tex->view, nullptr );
+    if ( metadata->ptr )          vmaUnmapMemory( mVma, metadata->alloc );
+    if ( !metadata->isSwapchain ) vmaDestroyImage( mVma, tex->image, metadata->alloc );
     mTexturePool.Delete( handle );
 }
 
 Util::BufferHandle Rhi::Device::CreateBuffer( const BufferSpecification & spec ) {
-    BufferHot hotResult = {
+    Buffer buf = {
         .size    = spec.size,
         .usage   = spec.usage,
         .storage = spec.storage
     };
-    BufferCold coldResult = {};
-    coldResult.debugName += spec.debugName;
+    BufferMetadata metadata = {};
+    metadata.debugName += spec.debugName;
 
     VkBufferUsageFlags usageFlags = spec.usage;
-    if ( hotResult.storage & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT )
+    if ( buf.storage & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT )
         usageFlags |= ( VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT );
     
     VkBufferCreateInfo ci = {
         .sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        .size        = hotResult.size,
+        .size        = buf.size,
         .usage       = usageFlags,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE
     };
     
     VmaAllocationCreateInfo allocCI = {};
-    if ( hotResult.storage & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT ) {
+    if ( buf.storage & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT ) {
         allocCI.flags          = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
         allocCI.requiredFlags  = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
         allocCI.preferredFlags = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
 
-        assert( vkCreateBuffer( mLogicalDevice, &ci, nullptr, &hotResult.buf ) == VK_SUCCESS );
+        assert( vkCreateBuffer( mLogicalDevice, &ci, nullptr, &buf.buf ) == VK_SUCCESS );
         VkMemoryRequirements requirements;
-        vkGetBufferMemoryRequirements( Device::Instance()->GetDevice(), hotResult.buf, &requirements );
-        vkDestroyBuffer( Device::Instance()->GetDevice(), hotResult.buf, nullptr );
+        vkGetBufferMemoryRequirements( Device::Instance()->GetDevice(), buf.buf, &requirements );
+        vkDestroyBuffer( Device::Instance()->GetDevice(), buf.buf, nullptr );
 
         if ( requirements.memoryTypeBits & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT )
             allocCI.requiredFlags |= VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
     }
     allocCI.usage = VMA_MEMORY_USAGE_AUTO;
-    vmaCreateBuffer( mVma, &ci, &allocCI, &hotResult.buf, &coldResult.alloc, nullptr );
+    vmaCreateBuffer( mVma, &ci, &allocCI, &buf.buf, &metadata.alloc, nullptr );
 
-    RegisterDebugObjectName( VK_OBJECT_TYPE_BUFFER, (ulong)hotResult.buf, coldResult.debugName );
+    RegisterDebugObjectName( VK_OBJECT_TYPE_BUFFER, (ulong)buf.buf, metadata.debugName );
 
-    if ( hotResult.storage & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT )
-        vmaMapMemory( mVma, coldResult.alloc, &coldResult.ptr );
+    if ( buf.storage & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT )
+        vmaMapMemory( mVma, metadata.alloc, &metadata.ptr );
+    
+    if ( buf.usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT ) {
+        const VkBufferDeviceAddressInfo addressInfo = {
+            .sType  = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+            .buffer = buf.buf
+        };
+        buf.address = vkGetBufferDeviceAddress( mLogicalDevice, &addressInfo );
+    }
 
-    Util::BufferHandle handle = mBufferPool.Create( std::move( hotResult ), std::move( coldResult ) );
+    Util::BufferHandle handle = mBufferPool.Create( std::move( buf ), std::move( metadata ) );
     if ( spec.ptr )
         StagingDevice::Instance()->Upload( handle, spec.ptr, spec.size );
     return handle;
 }
 
 void Rhi::Device::Delete( Util::BufferHandle handle ) {
-    BufferHot * hot = mBufferPool.GetHot( handle );
-    BufferCold * cold = mBufferPool.GetCold( handle );
-    if ( !hot || !cold )
+    Buffer * buf = mBufferPool.Get( handle );
+    BufferMetadata * metadata = mBufferPool.GetMetadata( handle );
+    if ( !buf || !metadata )
         return;
-    if ( cold->ptr ) vmaUnmapMemory( mVma, cold->alloc );
-    vmaDestroyBuffer( mVma, hot->buf, cold->alloc );
+    if ( metadata->ptr ) vmaUnmapMemory( mVma, metadata->alloc );
+    vmaDestroyBuffer( mVma, buf->buf, metadata->alloc );
     mBufferPool.Delete( handle );
 }
 
@@ -328,10 +337,16 @@ Util::SamplerHandle Rhi::Device::CreateSampler( const SamplerSpecification & spe
 }
 
 void Rhi::Device::Delete( Util::SamplerHandle handle ) {
-    Sampler * sampler = mSamplerPool.GetHot( handle );
+    Sampler * sampler = mSamplerPool.Get( handle );
     if ( !sampler )
         return;
     vkDestroySampler( mLogicalDevice, sampler->sampler, nullptr );
+}
+
+ulong Rhi::Device::DeviceAddress( Util::BufferHandle handle ) {
+    Buffer * buf = mBufferPool.Get( handle );
+    assert( buf && buf->address );
+    return buf->address;
 }
 
 VkImageView Rhi::Device::CreateImageView( VkImage image, VkFormat format, VkImageAspectFlags aspect ) {

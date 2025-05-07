@@ -4,6 +4,8 @@
 #include <Util/Pool.hpp>
 #include <Renderer/RenderBase.hpp>
 
+#include <Entity/Lights.hpp>
+
 #include <Resource/Resource.hpp>
 
 #include <vector>
@@ -20,7 +22,7 @@ namespace Rhi {
         void Destroy( void );
 
         void Resize( uint2 );
-        void Render( glm::mat4, float );
+        void Render( glm::vec3, glm::mat4, float );
 
         bool IsReady( void ) const { return mIsReady; }
 
@@ -42,6 +44,9 @@ namespace Rhi {
 
         Util::SamplerHandle  sampler;
         Util::TextureHandle  depthBuffer;
+
+        Util::BufferHandle lightBuffer;
+        uint               lightCount;
 
         Model mModel;
 

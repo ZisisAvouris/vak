@@ -94,7 +94,7 @@ namespace Util {
             return Handle<Type>( idx, gen );
         }
 
-        HotType * GetHot( Handle<Type> handle ) {
+        HotType * Get( Handle<Type> handle ) {
             if ( !handle.Valid() )
                 return nullptr;
             const uint idx = handle.mIndex;
@@ -102,7 +102,7 @@ namespace Util {
             return &mHotObjects[idx].mObj;
         }
 
-        ColdType * GetCold( Handle<Type> handle ) {
+        ColdType * GetMetadata( Handle<Type> handle ) {
             if ( !handle.Valid() )
                 return nullptr;
             const uint idx = handle.mIndex;

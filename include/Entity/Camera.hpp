@@ -14,6 +14,7 @@ namespace Entity {
         void Init( glm::vec3 );
 
         glm::mat4 GetViewMatrix( void ) const;
+        glm::vec3 GetPosition( void ) const { return mPosition; }
 
         void ProcessMouseMovement( float, float );
         void ProcessKeyInput( span<bool>, float );

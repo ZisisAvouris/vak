@@ -71,17 +71,17 @@ void Rhi::Descriptors::UpdateDescriptorSets( void ) {
 
     
     Util::TextureHandle dummy = Device::Instance()->GetTexturePool()->GetHandle( 0 );
-    VkImageView dummyView = Device::Instance()->GetTexturePool()->GetHot( dummy )->view;
+    VkImageView dummyView = Device::Instance()->GetTexturePool()->Get( dummy )->view;
 
     for ( uint i = 0; i < Device::Instance()->GetTexturePool()->GetObjectCount(); ++i ) {
         Util::TextureHandle handle = Device::Instance()->GetTexturePool()->GetHandle( i );
         if ( handle.Valid() ) {
-            TextureHot * hot = Device::Instance()->GetTexturePool()->GetHot( handle );
+            Texture * tex = Device::Instance()->GetTexturePool()->Get( handle );
 
-            const bool isSampled = ( hot->usage & VK_IMAGE_USAGE_SAMPLED_BIT ) > 0;
+            const bool isSampled = ( tex->usage & VK_IMAGE_USAGE_SAMPLED_BIT ) > 0;
             descriptorInfoSampledImages.push_back( VkDescriptorImageInfo {
                 .sampler     = VK_NULL_HANDLE,
-                .imageView   = isSampled ? hot->view : dummyView,
+                .imageView   = isSampled ? tex->view : dummyView,
                 .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL 
             });
         }
@@ -93,7 +93,7 @@ void Rhi::Descriptors::UpdateDescriptorSets( void ) {
     for ( uint i = 0; i < Device::Instance()->GetSamplerPool()->GetObjectCount(); ++i ) {
         Util::SamplerHandle handle = Device::Instance()->GetSamplerPool()->GetHandle( i );
         if ( handle.Valid() ) {
-            Sampler * sampler = Device::Instance()->GetSamplerPool()->GetHot( handle );
+            Sampler * sampler = Device::Instance()->GetSamplerPool()->Get( handle );
             
             // @todo: ugly hack, fix in Pool implementation
             if ( sampler->sampler == nullptr )

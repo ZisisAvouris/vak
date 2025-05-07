@@ -93,7 +93,7 @@ void Core::WindowManager::Run( void ) {
 
         if ( mShouldCaptureInputs )
             Entity::Camera::Instance()->ProcessKeyInput( mKeyInput, deltaTime );
-        Rhi::Renderer::Instance()->Render( Entity::Camera::Instance()->GetViewMatrix(), deltaTime );
+        Rhi::Renderer::Instance()->Render( Entity::Camera::Instance()->GetPosition(), Entity::Camera::Instance()->GetViewMatrix(), deltaTime );
     }
 
     Rhi::Renderer::Instance()->Destroy();

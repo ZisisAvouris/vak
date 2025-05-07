@@ -22,14 +22,9 @@ namespace Resource {
 
     struct Vertex final {
         glm::vec3 position;
+        glm::vec3 normal;
         glm::vec2 uv;
     };
-
-    struct PushConstantBuf final {
-        glm::mat4 mvp;
-        uint      textureId;
-    };
-    static_assert( sizeof( PushConstantBuf ) <= 128 );
     
     struct Shader final {
         uint * byteCode = nullptr;

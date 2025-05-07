@@ -41,9 +41,14 @@ namespace Resource {
     
         vertexBuffer.reserve( mesh->mNumVertices );
         for ( uint i = 0; i < mesh->mNumVertices; ++i ) {
-            const aiVector3D pos = mesh->mVertices[i];
-            const aiVector3D uv  = mesh->mTextureCoords[0][i];
-            vertexBuffer.emplace_back( Vertex { .position = glm::vec3( pos.x, pos.y, pos.z ), .uv = glm::vec2( uv.x, uv.y ) } );
+            const aiVector3D pos    = mesh->mVertices[i];
+            const aiVector3D normal = mesh->mNormals[i];
+            const aiVector3D uv     = mesh->mTextureCoords[0][i];
+            vertexBuffer.emplace_back( Vertex {
+                .position = glm::vec3( pos.x, pos.y, pos.z ),
+                .normal   = glm::vec3( normal.x, normal.y, normal.z ),
+                .uv       = glm::vec2( uv.x, uv.y )
+            } );
         }
     
         mVertexHandle = Rhi::Device::Instance()->CreateBuffer({
