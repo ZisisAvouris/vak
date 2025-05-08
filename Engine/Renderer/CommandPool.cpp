@@ -6,7 +6,7 @@ void Rhi::CommandPool::Init( void ) {
     const VkCommandPoolCreateInfo ci = {
         .sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
         .flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT | VK_COMMAND_POOL_CREATE_TRANSIENT_BIT,
-        .queueFamilyIndex = Device::Instance()->GetQueueIndex()
+        .queueFamilyIndex = Device::Instance()->GetQueueIndex( QueueType_Graphics )
     };
     assert( vkCreateCommandPool( Device::Instance()->GetDevice(), &ci, nullptr, &mCommandPool ) == VK_SUCCESS );
 
@@ -56,7 +56,7 @@ void Rhi::CommandPool::Submit( CommandList * list, VkImage image ) {
         .pSignalSemaphores    = &signalSemaphore,
     };
     VkFence renderFence = Swapchain::Instance()->GetRenderFence();
-    assert( vkQueueSubmit( Device::Instance()->GetQueue(), 1, &submitInfo, renderFence ) == VK_SUCCESS );
+    assert( vkQueueSubmit( Device::Instance()->GetQueue( QueueType_Graphics ), 1, &submitInfo, renderFence ) == VK_SUCCESS );
 }
 
 void Rhi::CommandPool::Submit( CommandList * list, VkFence fence ) {
@@ -67,5 +67,5 @@ void Rhi::CommandPool::Submit( CommandList * list, VkFence fence ) {
         .commandBufferCount = 1,
         .pCommandBuffers    = &list->mBuf
     };
-    assert( vkQueueSubmit( Device::Instance()->GetQueue(), 1, &submitInfo, fence ) == VK_SUCCESS );
+    assert( vkQueueSubmit( Device::Instance()->GetQueue( QueueType_Graphics ), 1, &submitInfo, fence ) == VK_SUCCESS );
 }

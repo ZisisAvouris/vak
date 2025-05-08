@@ -18,7 +18,7 @@ namespace Rhi {
     
     class Renderer final : public Core::Singleton<Renderer> {
     public:
-        void Init( uint2 );
+        void Init( uint2, void * );
         void Destroy( void );
 
         void Resize( uint2 );

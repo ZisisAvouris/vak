@@ -32,20 +32,21 @@ void Rhi::Swapchain::Resize( uint2 newResolution ) {
     if ( mSwapchain )
         Destroy();
     Device::Instance()->QuerySurfaceCapabilities();
+    mSwapchainExtent = { newResolution.x, newResolution.y };
     
     const uint minImages = Device::Instance()->GetSurfaceCapabilities()->minImageCount + 1;
     const uint maxImages = Device::Instance()->GetSurfaceCapabilities()->maxImageCount;
 
     mNumSwapchainImages = ( minImages > maxImages ) ? maxImages : minImages;
 
-    const uint graphicsFamilyIndex = Device::Instance()->GetQueueIndex();
+    const uint graphicsFamilyIndex = Device::Instance()->GetQueueIndex( QueueType_Graphics );
     VkSwapchainCreateInfoKHR ci = {
         .sType                 = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
         .surface               = Device::Instance()->GetSurface(),
         .minImageCount         = mNumSwapchainImages,
         .imageFormat           = mSurfaceFormat.format,
         .imageColorSpace       = mSurfaceFormat.colorSpace,
-        .imageExtent           = { newResolution.x, newResolution.y },
+        .imageExtent           = mSwapchainExtent,
         .imageArrayLayers      = 1,
         .imageUsage            = mSwapchainUsage,
         .imageSharingMode      = VK_SHARING_MODE_EXCLUSIVE,
@@ -105,7 +106,7 @@ void Rhi::Swapchain::Present( void ) {
         .pSwapchains        = &mSwapchain,
         .pImageIndices      = &mCurrentImage
     };
-    vkQueuePresentKHR( Device::Instance()->GetQueue(), &presentInfo );
+    vkQueuePresentKHR( Device::Instance()->GetQueue( QueueType_Graphics ), &presentInfo );
 }
 
 VkSurfaceFormatKHR Rhi::Swapchain::PickSwapchainFormat( span<const VkSurfaceFormatKHR> formats ) {

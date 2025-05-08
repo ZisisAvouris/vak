@@ -24,6 +24,7 @@ namespace Rhi {
         VkFence GetRenderFence( void ) const { return mRenderFence; }
 
         VkFormat GetSurfaceFormat( void ) const { return mSurfaceFormat.format; }
+        VkExtent2D GetSwapchainExtent( void ) const { return mSwapchainExtent; }
 
     private:
         VkSwapchainKHR     mSwapchain;
@@ -31,6 +32,7 @@ namespace Rhi {
         VkSurfaceFormatKHR mSurfaceFormat;
         VkPresentModeKHR   mPresentMode;
         VkImageUsageFlags  mSwapchainUsage;
+        VkExtent2D         mSwapchainExtent;
 
         uint                mNumSwapchainImages;
         vector<VkImage>     mSwapchainImages;

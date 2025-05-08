@@ -92,21 +92,48 @@ void Rhi::Device::PickPhysicalDevice( VkPhysicalDeviceType type ) {
 }
 
 void Rhi::Device::CreateLogicalDevice( void ) {
-    mQueueFamilyIndex.graphics = FindQueueFamilyIndex( VK_QUEUE_GRAPHICS_BIT );
-    printf("Found Graphics Queue with index %u\n", mQueueFamilyIndex.graphics);
-    assert( mQueueFamilyIndex.Valid() );
+    uint queueFamilyCount = 0;
+    vkGetPhysicalDeviceQueueFamilyProperties( mPhysicalDevice, &queueFamilyCount, nullptr );
+    vector<VkQueueFamilyProperties> props( queueFamilyCount );
+    vkGetPhysicalDeviceQueueFamilyProperties( mPhysicalDevice, &queueFamilyCount, props.data() );
+
+    char queueDescription[256];
+    
+    printf( "[Device] Queues:\n" );
+    for ( uint i = 0; i < props.size(); ++i ) {
+        const VkQueueFamilyProperties & prop = props[i];
+        if ( prop.queueCount == 0 )
+            continue;
+
+        int offset = snprintf( queueDescription, sizeof( queueDescription ), "\tQueue %u | Count: %2u ", i, prop.queueCount );
+
+        if ( prop.queueFlags & VK_QUEUE_GRAPHICS_BIT         ) offset += snprintf( queueDescription + offset, sizeof( queueDescription ), "| GRAPHICS       " );
+        if ( prop.queueFlags & VK_QUEUE_TRANSFER_BIT         ) offset += snprintf( queueDescription + offset, sizeof( queueDescription ), "| TRANSFER       " );
+        if ( prop.queueFlags & VK_QUEUE_COMPUTE_BIT          ) offset += snprintf( queueDescription + offset, sizeof( queueDescription ), "| COMPUTE        " );
+        if ( prop.queueFlags & VK_QUEUE_SPARSE_BINDING_BIT   ) offset += snprintf( queueDescription + offset, sizeof( queueDescription ), "| SPARSE BINDING " );
+        if ( prop.queueFlags & VK_QUEUE_PROTECTED_BIT        ) offset += snprintf( queueDescription + offset, sizeof( queueDescription ), "| PROTECTED      " );
+        if ( prop.queueFlags & VK_QUEUE_VIDEO_DECODE_BIT_KHR ) offset += snprintf( queueDescription + offset, sizeof( queueDescription ), "| VIDEO DECODE   " );
+        if ( prop.queueFlags & VK_QUEUE_VIDEO_ENCODE_BIT_KHR ) offset += snprintf( queueDescription + offset, sizeof( queueDescription ), "| VIDEO ENCODE   " );
+
+        VkBool32 supportsPresentation = VK_FALSE;
+        vkGetPhysicalDeviceSurfaceSupportKHR( mPhysicalDevice, i, mSurface, &supportsPresentation );
+        if ( supportsPresentation ) offset += snprintf( queueDescription + offset, sizeof( queueDescription ), "| PRESENT        " );
+
+        queueDescription[offset] = 0;
+        printf( "%s\n", queueDescription );
+    }
+
+    mQueues.graphicsIndex = FindQueueFamilyIndex( props, VK_QUEUE_GRAPHICS_BIT, 0 );
+    printf("[Device] Found Graphics Queue with index %u\n", mQueues.graphicsIndex);
+
+    mQueues.transferIndex = FindQueueFamilyIndex( props, VK_QUEUE_TRANSFER_BIT, VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT );
+    printf("[Device] Found Transfer Queue with index %u\n", mQueues.transferIndex);
+
+    assert( mQueues.Valid() && mQueues.graphicsIndex != mQueues.transferIndex );
 
     VkBool32 supportsPresentation = VK_FALSE;
-    vkGetPhysicalDeviceSurfaceSupportKHR( mPhysicalDevice, mQueueFamilyIndex.graphics, mSurface, &supportsPresentation );
+    vkGetPhysicalDeviceSurfaceSupportKHR( mPhysicalDevice, mQueues.graphicsIndex, mSurface, &supportsPresentation );
     assert( supportsPresentation == VK_TRUE );
-
-    const float priority = 1.0f;
-    VkDeviceQueueCreateInfo queueCI = {
-        .sType            = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-        .queueFamilyIndex = mQueueFamilyIndex.graphics,
-        .queueCount       = 1,
-        .pQueuePriorities = &priority
-    };
 
     vector<const char *> deviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME, VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME };
 
@@ -132,18 +159,34 @@ void Rhi::Device::CreateLogicalDevice( void ) {
         .dynamicRendering = VK_TRUE
     };
 
+    const float priority = 1.0f;
+    vector<VkDeviceQueueCreateInfo> queueCIs = {
+        VkDeviceQueueCreateInfo { .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+            .queueFamilyIndex = mQueues.graphicsIndex,
+            .queueCount       = 1,
+            .pQueuePriorities = &priority
+        },
+        VkDeviceQueueCreateInfo { .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+            .queueFamilyIndex = mQueues.transferIndex,
+            .queueCount       = 1,
+            .pQueuePriorities = &priority
+        }
+    };
+
     VkDeviceCreateInfo ci = {
         .sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
         .pNext                   = &vkFeatures13,
-        .queueCreateInfoCount    = 1,
-        .pQueueCreateInfos       = &queueCI,
+        .queueCreateInfoCount    = static_cast<uint>( queueCIs.size() ),
+        .pQueueCreateInfos       = queueCIs.data(),
         .enabledExtensionCount   = static_cast<uint>( deviceExtensions.size() ),
         .ppEnabledExtensionNames = deviceExtensions.data(),
         .pEnabledFeatures        = &vkFeatures10
     };
     assert( vkCreateDevice( mPhysicalDevice, &ci, nullptr, &mLogicalDevice ) == VK_SUCCESS );
     volkLoadDevice( mLogicalDevice );
-    vkGetDeviceQueue( mLogicalDevice, mQueueFamilyIndex.graphics, 0, &mQueues.graphics );
+
+    vkGetDeviceQueue( mLogicalDevice, mQueues.graphicsIndex, 0, &mQueues.graphics );
+    vkGetDeviceQueue( mLogicalDevice, mQueues.transferIndex, 0, &mQueues.transfer );
 }
 
 void Rhi::Device::RegisterDebugObjectName( VkObjectType type, ulong handle, const std::string & name ) {
@@ -156,13 +199,11 @@ void Rhi::Device::RegisterDebugObjectName( VkObjectType type, ulong handle, cons
     assert( vkSetDebugUtilsObjectNameEXT( mLogicalDevice, &ci ) == VK_SUCCESS );
 };
 
-uint Rhi::Device::FindQueueFamilyIndex( VkQueueFlags flags ) {
-    uint queueFamilyCount = 0;
-    vkGetPhysicalDeviceQueueFamilyProperties( mPhysicalDevice, &queueFamilyCount, nullptr );
-    vector<VkQueueFamilyProperties> props( queueFamilyCount );
-    vkGetPhysicalDeviceQueueFamilyProperties( mPhysicalDevice, &queueFamilyCount, props.data() );
+uint Rhi::Device::FindQueueFamilyIndex( span<const VkQueueFamilyProperties> props, VkQueueFlags flags, VkQueueFlags avoid ) {
+    for ( uint i = 0; i < props.size(); ++i ) {
+        if ( props[i].queueFlags & avoid )
+            continue;
 
-    for ( uint i = 0; i < queueFamilyCount; ++i ) {
         const bool isSuitable  = ( props[i].queueFlags & flags ) == flags;
         if ( isSuitable && props[i].queueCount )
             return i;

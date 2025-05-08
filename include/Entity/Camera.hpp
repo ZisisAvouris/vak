@@ -4,10 +4,8 @@
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include <span>
 
 namespace Entity {
-    using std::span;
 
     class Camera final : public Core::Singleton<Camera> {
     public:
@@ -17,13 +15,14 @@ namespace Entity {
         glm::vec3 GetPosition( void ) const { return mPosition; }
 
         void ProcessMouseMovement( float, float );
-        void ProcessKeyInput( span<bool>, float );
+        void ProcessKeyInput( float );
 
     private:
         glm::vec3 mPosition;
         glm::vec3 mForward;
         glm::vec3 mRight;
         glm::vec3 mUp;
+        glm::vec3 mWorldUp;
 
         float mYaw, mPitch;
         float mMoveSpeed, mSensitivity;

@@ -1,4 +1,5 @@
 #include <Entity/Camera.hpp>
+#include <Core/Input.hpp>
 
 void Entity::Camera::Init( glm::vec3 startPosition ) {
     mPosition    = startPosition;
@@ -6,6 +7,7 @@ void Entity::Camera::Init( glm::vec3 startPosition ) {
     mPitch       = 0.0f;
     mMoveSpeed   = 200.0f;
     mSensitivity = 0.1f;
+    mWorldUp     = glm::vec3( 0.0f, 1.0f, 0.0f );
     UpdateCameraVectors();
 }
 
@@ -21,12 +23,16 @@ void Entity::Camera::ProcessMouseMovement( float xoff, float yoff ) {
     UpdateCameraVectors();
 }
 
-void Entity::Camera::ProcessKeyInput( span<bool> inputs, float deltaTime ) {
+void Entity::Camera::ProcessKeyInput( float deltaTime ) {
+    mMoveSpeed = Input::KeyboardInputs::Instance()->GetKey( Input::Key_LShift ) ? 500.0f : 200.0f;
     const float velocity = deltaTime * mMoveSpeed;
-    if ( inputs[0] ) mPosition += mForward * velocity;
-    if ( inputs[1] ) mPosition -= mRight   * velocity;
-    if ( inputs[2] ) mPosition -= mForward * velocity;
-    if ( inputs[3] ) mPosition += mRight   * velocity;
+
+    if ( Input::KeyboardInputs::Instance()->GetKey( Input::Key_W        ) ) mPosition += mForward * velocity;
+    if ( Input::KeyboardInputs::Instance()->GetKey( Input::Key_A        ) ) mPosition -= mRight   * velocity;
+    if ( Input::KeyboardInputs::Instance()->GetKey( Input::Key_S        ) ) mPosition -= mForward * velocity;
+    if ( Input::KeyboardInputs::Instance()->GetKey( Input::Key_D        ) ) mPosition += mRight   * velocity;
+    if ( Input::KeyboardInputs::Instance()->GetKey( Input::Key_Space    ) ) mPosition += mWorldUp * velocity;
+    if ( Input::KeyboardInputs::Instance()->GetKey( Input::Key_LControl ) ) mPosition -= mWorldUp * velocity;
 }
 
 void Entity::Camera::UpdateCameraVectors( void ) {

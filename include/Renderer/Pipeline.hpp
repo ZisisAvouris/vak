@@ -14,6 +14,8 @@ namespace Rhi {
 
         RenderPipeline CreateRenderPipeline( const RenderPipelineSpecification & );
 
+        VkPipelineCache GetPipelineCache( void ) const { return mPipelineCache; }
+
     private:
         VkPipelineCache mPipelineCache;
 

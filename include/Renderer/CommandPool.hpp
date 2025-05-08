@@ -41,6 +41,8 @@ namespace Rhi {
         void BeginDebugLabel( const char *, const float (&)[4] );
         void EndDebugLabel( void );
 
+        VkCommandBuffer GetCommandBuffer( void ) const { return mBuf; }
+
     private:
         friend class CommandPool;
         VkCommandBuffer mBuf = VK_NULL_HANDLE;

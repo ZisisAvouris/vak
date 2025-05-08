@@ -5,9 +5,11 @@
 #include <Renderer/CommandPool.hpp>
 #include <Renderer/Pipeline.hpp>
 #include <Renderer/Descriptors.hpp>
+#include <Renderer/GUI.hpp>
+#include <Core/Input.hpp>
 #include <stb_image.h>
 
-void Rhi::Renderer::Init( uint2 renderResolution ) {
+void Rhi::Renderer::Init( uint2 renderResolution, void * windowHandle ) {
     DebugPrintStructSizes();
     mRenderResolution = renderResolution;
 
@@ -23,6 +25,7 @@ void Rhi::Renderer::Init( uint2 renderResolution ) {
 
     CommandPool::Instance()->Init();
     PipelineFactory::Instance()->Init();
+    GUI::Renderer::Instance()->Init( windowHandle );
 
     const uint pixel = 0xFFFF00FF;
     Device::Instance()->CreateTexture({
@@ -121,6 +124,7 @@ void Rhi::Renderer::Destroy( void ) {
     vkDestroyShaderModule( Device::Instance()->GetDevice(), smVert, nullptr );
     vkDestroyShaderModule( Device::Instance()->GetDevice(), smFrag, nullptr );
     
+    GUI::Renderer::Instance()->Destroy();
     PipelineFactory::Instance()->Destroy();
     CommandPool::Instance()->Destroy();
     Descriptors::Instance()->Destroy();
@@ -182,6 +186,9 @@ void Rhi::Renderer::Render( glm::vec3 cameraPosition, glm::mat4 view, float delt
             cmdlist->DrawIndexed( mModel.GetIndexCount( i ) );
         }
         cmdlist->EndDebugLabel();
+
+        if ( Input::KeyboardInputs::Instance()->GetKey( Input::Key_G ) )
+            GUI::Renderer::Instance()->Render( cmdlist );
     cmdlist->EndRendering();
     
     CommandPool::Instance()->Submit( cmdlist, image );

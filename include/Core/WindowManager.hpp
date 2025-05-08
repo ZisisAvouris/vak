@@ -11,14 +11,6 @@
 
 namespace Core {
 
-    enum Key : _byte {
-        Key_W,
-        Key_A,
-        Key_S,
-        Key_D,
-        Key_MAX
-    };
-
     class WindowManager final : public Core::Singleton<WindowManager> {
     public:
         void InitWindow( void );
@@ -36,7 +28,8 @@ namespace Core {
             mJustCapturedInput   = mShouldCaptureInputs;
             return mShouldCaptureInputs;
         }
-        void SetKey( Key key, bool value ) { mKeyInput[key] = value; } 
+
+        float GetFPS( void ) const { return mFPS; }
 
     private:
         HWND      mWindowHandle = nullptr;
@@ -51,7 +44,11 @@ namespace Core {
         bool  mShouldCaptureInputs = true;
         bool  mJustCapturedInput   = true;
         POINT mWindowCenter;
-        bool  mKeyInput[Key_MAX] = { false };
+
+        float mAccumulatedTime = 0.0f;
+        uint  mFramesRendered  = 0;
+        float mFPS             = 0.0f;
+        float mSampleInterval  = 0.5f;
 
         void RecenterCursor( void );
     };

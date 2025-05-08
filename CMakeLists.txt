@@ -22,10 +22,22 @@ file(GLOB_RECURSE SOURCES
     "${CMAKE_SOURCE_DIR}/Editor/*.cpp"
 )
 
+set(IMGUI_DIR ${CMAKE_SOURCE_DIR}/third-party/imgui)
+set(IMGUI_SOURCES 
+    ${IMGUI_DIR}/imgui.cpp
+    ${IMGUI_DIR}/imgui_draw.cpp
+    ${IMGUI_DIR}/imgui_tables.cpp
+    ${IMGUI_DIR}/imgui_widgets.cpp
+    ${IMGUI_DIR}/imgui_demo.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_win32.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_vulkan.cpp
+)
+
 find_package(Vulkan REQUIRED)
 
-add_executable(vak ${SOURCES})
+add_executable(vak ${SOURCES} ${IMGUI_SOURCES})
 target_compile_definitions(vak PRIVATE ASSIMP_BUILD_NO_EXPORT)
+target_compile_definitions(vak PRIVATE IMGUI_IMPL_VULKAN_NO_PROTOTYPES)
 
 add_subdirectory(third-party/volk)
 add_subdirectory(third-party/VulkanMemoryAllocator)
@@ -35,6 +47,7 @@ add_subdirectory(third-party/assimp)
 target_include_directories(vak PRIVATE "${CMAKE_SOURCE_DIR}/include")
 target_include_directories(vak PRIVATE "${CMAKE_SOURCE_DIR}/third-party/volk")
 target_include_directories(vak PRIVATE "${CMAKE_SOURCE_DIR}/third-party/VulkanMemoryAllocator")
+target_include_directories(vak PRIVATE ${IMGUI_DIR} ${IMGUI_DIR}/backends)
 
 add_library(stb INTERFACE)
 target_include_directories(stb INTERFACE "${CMAKE_SOURCE_DIR}/third-party/stb")

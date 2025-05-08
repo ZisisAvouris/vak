@@ -8,14 +8,19 @@
 
 namespace Rhi {
 
-    struct QueueFamilyIndex {
-        uint graphics = UINT32_MAX;
-
-        inline bool Valid( void ) const { return graphics != UINT32_MAX; } 
+    enum QueueType : _byte {
+        QueueType_Graphics,
+        QueueType_Transfer
     };
 
     struct DeviceQueues {
         VkQueue graphics = VK_NULL_HANDLE;
+        VkQueue transfer = VK_NULL_HANDLE;
+
+        uint graphicsIndex = UINT32_MAX;
+        uint transferIndex = UINT32_MAX;
+
+        inline bool Valid( void ) const { return graphicsIndex != UINT32_MAX && transferIndex != UINT32_MAX; }
     };
 
     class StagingDevice final : public Core::Singleton<StagingDevice> {
@@ -50,8 +55,14 @@ namespace Rhi {
         const VkSurfaceCapabilitiesKHR * GetSurfaceCapabilities( void ) const { return &mSurfaceCapabilities; }
 
         VkSurfaceKHR GetSurface( void ) const { return mSurface; }
-        uint         GetQueueIndex( void ) const { return mQueueFamilyIndex.graphics; } // @todo: revisit
-        VkQueue      GetQueue( void ) const { return mQueues.graphics; }
+        uint         GetQueueIndex( const QueueType type ) const {
+            if ( type == QueueType_Graphics ) return mQueues.graphicsIndex;
+            if ( type == QueueType_Transfer ) return mQueues.transferIndex;
+        }
+        VkQueue      GetQueue( const QueueType type ) const {
+            if ( type == QueueType_Graphics ) return mQueues.graphics;
+            if ( type == QueueType_Transfer ) return mQueues.transfer;
+        }
 
         VmaAllocator GetVMA( void ) const { return mVma; }
 
@@ -77,9 +88,7 @@ namespace Rhi {
         VkSurfaceKHR     mSurface        = VK_NULL_HANDLE;
         VkPhysicalDevice mPhysicalDevice = VK_NULL_HANDLE;
         VkDevice         mLogicalDevice  = VK_NULL_HANDLE;
-
-        QueueFamilyIndex mQueueFamilyIndex = {};
-        DeviceQueues     mQueues           = {};
+        DeviceQueues     mQueues         = {};
 
         VmaAllocator     mVma;
 
@@ -103,7 +112,7 @@ namespace Rhi {
 
         void RegisterDebugObjectName( VkObjectType, ulong, const std::string & );
 
-        uint FindQueueFamilyIndex( VkQueueFlags );
+        uint FindQueueFamilyIndex( span<const VkQueueFamilyProperties>, VkQueueFlags, VkQueueFlags );
     };
 
 }
