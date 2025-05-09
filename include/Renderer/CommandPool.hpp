@@ -24,6 +24,7 @@ namespace Rhi {
 
         void Draw( uint vertexCount, uint instanceCount = 1, uint firstVertex = 0, uint firstInstance = 0 );
         void DrawIndexed( uint indexCount, uint instanceCount = 1, uint firstIndex = 0, uint vertexOffset = 0, uint firstInstance = 0 );
+        void DrawIndexedIndirect( Util::BufferHandle, size_t, uint, uint = 0 );
 
         void BindRenderPipeline( const RenderPipeline & );
 

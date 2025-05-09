@@ -57,6 +57,11 @@ void Rhi::CommandList::DrawIndexed( uint indexCount, uint instanceCount, uint fi
     vkCmdDrawIndexed( mBuf, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance );
 }
 
+void Rhi::CommandList::DrawIndexedIndirect( Util::BufferHandle indirectBuffer, size_t offset, uint drawCount, uint stride ) {
+    Buffer * buf = Device::Instance()->GetBufferPool()->Get( indirectBuffer );
+    vkCmdDrawIndexedIndirect( mBuf, buf->buf, offset, drawCount, stride );
+}
+
 void Rhi::CommandList::BindRenderPipeline( const RenderPipeline & rp ) {
     vkCmdBindPipeline( mBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, rp.pipeline );
 

@@ -48,7 +48,7 @@ namespace Rhi {
         Util::BufferHandle lightBuffer;
         uint               lightCount;
 
-        Model mModel;
+        Mesh mMesh;
 
         void ComputeProjectionMatrix( void );
         void DebugPrintStructSizes( void );

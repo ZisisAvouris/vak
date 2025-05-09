@@ -11,8 +11,8 @@ namespace Entity {
     public:
         void Init( glm::vec3 );
 
-        glm::mat4 GetViewMatrix( void ) const;
-        glm::vec3 GetPosition( void ) const { return mPosition; }
+        glm::mat4 & GetViewMatrix( void );
+        glm::vec3 & GetPosition( void ) { return mPosition; }
 
         void ProcessMouseMovement( float, float );
         void ProcessKeyInput( float );
@@ -23,6 +23,8 @@ namespace Entity {
         glm::vec3 mRight;
         glm::vec3 mUp;
         glm::vec3 mWorldUp;
+
+        glm::mat4 mViewMatrix;
 
         float mYaw, mPitch;
         float mMoveSpeed, mSensitivity;

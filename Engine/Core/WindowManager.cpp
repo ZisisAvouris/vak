@@ -78,6 +78,14 @@ void Core::WindowManager::InitWindow( void ) {
         assert(false);
     }
 
+    // Center window on primary screen
+    const int screenWidth  = GetSystemMetrics( SM_CXSCREEN );
+    const int screenHeight = GetSystemMetrics( SM_CYSCREEN );
+
+    const int xCenter = ( screenWidth - mWinResolution.x ) / 2;
+    const int yCenter = ( screenHeight - mWinResolution.y ) / 2;
+    SetWindowPos( mWindowHandle, nullptr, xCenter, yCenter, 0, 0, SWP_NOZORDER | SWP_NOSIZE );
+
     ShowWindow( mWindowHandle, SW_SHOW );
 
     ShowCursor( FALSE );

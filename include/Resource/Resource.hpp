@@ -40,54 +40,36 @@ namespace Resource {
     };
     Image LoadTexture( const std::string & );
 
-    struct Mesh final {
-    public:
-        Mesh( const aiMesh *, uint );
-        ~Mesh() = default;
-
-        Mesh( Mesh && ) = default;
-        Mesh & operator=( Mesh&& ) = default;
-
-        Mesh( const Mesh & ) = delete;
-        Mesh & operator=( const Mesh & ) = delete;
-
-        uint GetIndexCount( void ) const { return mIndexCount; }
-        
-    private:
-        friend class Model;
-        Util::BufferHandle mVertexHandle;
-        Util::BufferHandle mIndexHandle;
-        glm::mat4          mTransform;
-        uint               mTextureId;
-        uint               mIndexCount;
-
+    struct DrawParameters final {
+        uint transformID;
+        uint materialID;
     };
 
-    class Model final {
+    struct Mesh final {
     public:
-        Model() = default;
-        ~Model() = default;
+        Mesh() = default;
+        ~Mesh();
 
-        bool LoadModelFromFile( const std::string &, uint extraAssimpFlags = 0 );
+        bool LoadMeshFromFile( const std::string &, uint = 0 );
 
-        Util::BufferHandle GetVertexBuffer( uint index ) const { return mMeshes[index].mVertexHandle; }
-        Util::BufferHandle GetIndexBuffer( uint index ) const { return mMeshes[index].mIndexHandle; }
+        Util::BufferHandle mVertexBuffer;
+        Util::BufferHandle mIndexBuffer;
+        Util::BufferHandle mTransformBuffer;
+        Util::BufferHandle mIndirectBuffer;
+        Util::BufferHandle mDrawParamBuffer;
+        Util::BufferHandle mMaterialBuffer;
 
-        uint GetTextureId( uint index ) const { return mMeshes[index].mTextureId; }
-        uint GetIndexCount( uint index ) const { return mMeshes[index].mIndexCount; }
-
-        uint GetMeshCount( void ) const { return static_cast<uint>( mMeshes.size() ); }
-
-        glm::mat4 & TransformRef( uint index ) { return mMeshes[index].mTransform; }
-    
-    private:
-        vector<Mesh>                    mMeshes;
-        vector<Util::TextureHandle>     mTextures;
-        vector<pair<uint, std::string>> mTextureFilenames;
-        std::string                     mFilepath;
-
-        void UploadTextures( void );
+        uint GetMeshCount( void ) const { return mMeshCount; }
         
+    private:
+        vector<Util::TextureHandle> mTextures;
+
+        std::string mFilepath;
+        vector<pair<uint, std::string>> mTextureFilenames;
+
+        uint mMeshCount;
+        void UploadTextures( span<DrawParameters> );
+
     };
 
 }

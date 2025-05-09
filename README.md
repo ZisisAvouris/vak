@@ -2,12 +2,15 @@
 The goal of this project is to create a modern Vulkan renderer with a few features that would make it resemble a basic game engine. <br>
 The renderer is built around `VK_KHR_dynamic_rendering` and bindless resources.
 
+![Latest Progress 09 May 2025](./latest_progress_09_May_2025.png)
+**Latest Progress: 09 May 2025 - Note: No transparency yet**
+
 ## Build Instructions
 **Only works on Windows!** <br>
 The project has a single hard dependency to the Vulkan SDK (i.e. it needs to be in your PATH variables)
 - `git submodule update --init --recursive`
 - `./build.bat`
-- `./compilerShaders.bat`
+- `./compileShaders.bat`
 - `build/Debug/vak.exe`
 
 ## Debugging with Visual Studio

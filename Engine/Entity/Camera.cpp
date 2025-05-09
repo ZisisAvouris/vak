@@ -11,8 +11,9 @@ void Entity::Camera::Init( glm::vec3 startPosition ) {
     UpdateCameraVectors();
 }
 
-glm::mat4 Entity::Camera::GetViewMatrix( void ) const {
-    return glm::lookAt( mPosition, mPosition + mForward, mUp );
+glm::mat4 & Entity::Camera::GetViewMatrix( void ) {
+    mViewMatrix = glm::lookAt( mPosition, mPosition + mForward, mUp );
+    return mViewMatrix;
 }
 
 void Entity::Camera::ProcessMouseMovement( float xoff, float yoff ) {

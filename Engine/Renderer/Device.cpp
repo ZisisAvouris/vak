@@ -138,11 +138,18 @@ void Rhi::Device::CreateLogicalDevice( void ) {
     vector<const char *> deviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME, VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME };
 
     VkPhysicalDeviceFeatures vkFeatures10 = {
+        .multiDrawIndirect = VK_TRUE,
         .samplerAnisotropy = VK_TRUE,
+    };
+
+    VkPhysicalDeviceVulkan11Features vkFeatures11 = {
+        .sType                = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
+        .shaderDrawParameters = VK_TRUE
     };
 
     VkPhysicalDeviceVulkan12Features vkFeatures12 = { // Vulkan 1.2 features we need
         .sType                                        = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+        .pNext                                        = &vkFeatures11,
         .descriptorIndexing                           = VK_TRUE,
         .descriptorBindingSampledImageUpdateAfterBind = VK_TRUE,
         .descriptorBindingUpdateUnusedWhilePending    = VK_TRUE,
