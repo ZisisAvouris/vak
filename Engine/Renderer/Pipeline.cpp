@@ -11,14 +11,21 @@ void Rhi::PipelineFactory::Init( void ) {
 }
 
 void Rhi::PipelineFactory::Destroy( void ) {
+    for ( uint i = 0; i < mRenderPipelinePool.GetObjectCount(); ++i ) {
+        Util::RenderPipelineHandle handle = mRenderPipelinePool.GetHandle( i );
+        if ( handle.Valid() ) Delete( handle );
+    }
     vkDestroyPipelineCache( Device::Instance()->GetDevice(), mPipelineCache, nullptr );
 }
 
-Rhi::RenderPipeline Rhi::PipelineFactory::CreateRenderPipeline( const Rhi::RenderPipelineSpecification & spec ) {
-    RenderPipeline rp = {
+Util::RenderPipelineHandle Rhi::PipelineFactory::CreateRenderPipeline( const RenderPipelineSpecification & spec ) {
+    RenderPipelineMetadata metadata = {
         .spec           = spec,
         .attributeCount = spec.vertexSpec.GetAttributeCount()
     };
+    metadata.debugName += spec.debugName;
+
+    RenderPipeline rp = {};
 
     VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = {
         .sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
@@ -36,7 +43,13 @@ Rhi::RenderPipeline Rhi::PipelineFactory::CreateRenderPipeline( const Rhi::Rende
         .lineWidth        = 1.f,
     };
     VkPipelineColorBlendAttachmentState blendAttachmentState = {
-        .blendEnable         = VK_FALSE,
+        .blendEnable         = spec.blend.enable,
+        .srcColorBlendFactor = spec.blend.srcRgbBF,
+        .dstColorBlendFactor = spec.blend.dstRgbBF,
+        .colorBlendOp        = spec.blend.rgbBlendOp,
+        .srcAlphaBlendFactor = spec.blend.srcAlphaBF,
+        .dstAlphaBlendFactor = spec.blend.dstAlphaBF,
+        .alphaBlendOp        = spec.blend.alphaBlendOp,
         .colorWriteMask      = 0xF
     };
     VkPipelineColorBlendAttachmentState colorAttachmentState = {
@@ -71,7 +84,7 @@ Rhi::RenderPipeline Rhi::PipelineFactory::CreateRenderPipeline( const Rhi::Rende
     VkPipelineDynamicStateCreateInfo dynamicState = {
         .sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
         .flags             = 0,
-        .dynamicStateCount = 2,
+        .dynamicStateCount = VAK_ARRSIZE( dynamicStateEnables ),
         .pDynamicStates    = dynamicStateEnables
     };
 
@@ -84,21 +97,21 @@ Rhi::RenderPipeline Rhi::PipelineFactory::CreateRenderPipeline( const Rhi::Rende
     };
 
     bool isBufferBound[sMaxVertexBindings] = { false };
-    for ( uint i = 0; i != rp.attributeCount; ++i ) {
-        const VertexSpecification::VertexAttribute & vattr = spec.vertexSpec.attributes[i]; 
-        rp.attributes[i] = { .location = vattr.location, .binding = vattr.binding, .format = vattr.format, .offset = vattr.offset };
+    for ( uint i = 0; i != metadata.attributeCount; ++i ) {
+        const VertexSpecification::VertexAttribute & vattr = spec.vertexSpec.attributes[i];
+        metadata.attributes[i] = { .location = vattr.location, .binding = vattr.binding, .format = vattr.format, .offset = vattr.offset };
         if ( !isBufferBound[vattr.binding] ) {
             isBufferBound[vattr.binding] = true;
-            rp.bindings[rp.bindingCount++] = { .binding = vattr.binding, .stride = spec.vertexSpec.bindings[vattr.binding].stride, .inputRate = VK_VERTEX_INPUT_RATE_VERTEX };
+            metadata.bindings[metadata.bindingCount++] = { .binding = vattr.binding, .stride = spec.vertexSpec.bindings[vattr.binding].stride, .inputRate = VK_VERTEX_INPUT_RATE_VERTEX };
         }
     }
 
     VkPipelineVertexInputStateCreateInfo vertexInputState = {
         .sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-        .vertexBindingDescriptionCount   = rp.bindingCount,
-        .pVertexBindingDescriptions      = rp.bindings,
-        .vertexAttributeDescriptionCount = rp.attributeCount,
-        .pVertexAttributeDescriptions    = rp.attributes
+        .vertexBindingDescriptionCount   = metadata.bindingCount,
+        .pVertexBindingDescriptions      = metadata.bindings,
+        .vertexAttributeDescriptionCount = metadata.attributeCount,
+        .pVertexAttributeDescriptions    = metadata.attributes
     };
 
     array<VkPipelineShaderStageCreateInfo, 2> shaderStages = {
@@ -149,5 +162,12 @@ Rhi::RenderPipeline Rhi::PipelineFactory::CreateRenderPipeline( const Rhi::Rende
     };
 
     assert( vkCreateGraphicsPipelines( Device::Instance()->GetDevice(), mPipelineCache, 1, &gpci, nullptr, &rp.pipeline ) == VK_SUCCESS );
-    return rp;
+    return mRenderPipelinePool.Create( std::move( rp ), std::move( metadata ) );
+}
+
+void Rhi::PipelineFactory::Delete( Util::RenderPipelineHandle handle ) {
+    RenderPipeline * rp = mRenderPipelinePool.Get( handle );
+    if ( !rp ) assert( false );
+    vkDestroyPipelineLayout( Device::Instance()->GetDevice(), rp->layout, nullptr );
+    vkDestroyPipeline( Device::Instance()->GetDevice(), rp->pipeline, nullptr );
 }

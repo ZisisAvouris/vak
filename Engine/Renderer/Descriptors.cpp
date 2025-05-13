@@ -69,7 +69,6 @@ void Rhi::Descriptors::UpdateDescriptorSets( void ) {
     vector<VkDescriptorImageInfo> descriptorInfoSampledImages;
     descriptorInfoSampledImages.reserve( Device::Instance()->GetTexturePool()->GetEntryCount() );
 
-    
     Util::TextureHandle dummy = Device::Instance()->GetTexturePool()->GetHandle( 0 );
     VkImageView dummyView = Device::Instance()->GetTexturePool()->Get( dummy )->view;
 
@@ -82,7 +81,7 @@ void Rhi::Descriptors::UpdateDescriptorSets( void ) {
             descriptorInfoSampledImages.push_back( VkDescriptorImageInfo {
                 .sampler     = VK_NULL_HANDLE,
                 .imageView   = isSampled ? tex->view : dummyView,
-                .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL 
+                .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
             });
         }
     }
@@ -94,7 +93,7 @@ void Rhi::Descriptors::UpdateDescriptorSets( void ) {
         Util::SamplerHandle handle = Device::Instance()->GetSamplerPool()->GetHandle( i );
         if ( handle.Valid() ) {
             Sampler * sampler = Device::Instance()->GetSamplerPool()->Get( handle );
-            
+
             // @todo: ugly hack, fix in Pool implementation
             if ( sampler->sampler == nullptr )
                 continue;
@@ -131,6 +130,6 @@ void Rhi::Descriptors::UpdateDescriptorSets( void ) {
             .pImageInfo      = descriptorInfoSamplers.data()
         };
 
-    vkUpdateDescriptorSets( Device::Instance()->GetDevice(), 2, write, 0, nullptr );
+    vkUpdateDescriptorSets( Device::Instance()->GetDevice(), numWrites, write, 0, nullptr );
     mShouldUpdateDescriptors = false;
 }

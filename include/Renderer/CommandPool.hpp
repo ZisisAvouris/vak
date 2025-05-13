@@ -11,22 +11,17 @@ namespace Rhi {
     struct Buffer;
     struct RenderPipeline;
 
-    struct StageAccess {
-        VkPipelineStageFlags2 stage;
-        VkAccessFlags2        access;
-    };
-
     class CommandPool;
     class CommandList final {
     public:
-        void BeginRendering( uint2 res, VkImage image, VkImageView view, Util::TextureHandle dbHandle );
+        void BeginRendering( Util::TextureHandle, Util::TextureHandle = {} );
         void EndRendering( void );
 
         void Draw( uint vertexCount, uint instanceCount = 1, uint firstVertex = 0, uint firstInstance = 0 );
         void DrawIndexed( uint indexCount, uint instanceCount = 1, uint firstIndex = 0, uint vertexOffset = 0, uint firstInstance = 0 );
-        void DrawIndexedIndirect( Util::BufferHandle, size_t, uint, uint = 0 );
+        void DrawIndexedIndirect( Util::BufferHandle, uint );
 
-        void BindRenderPipeline( const RenderPipeline & );
+        void BindRenderPipeline( Util::RenderPipelineHandle );
 
         void BindVertexBuffer( Util::BufferHandle );
         void BindIndexBuffer( Util::BufferHandle, VkIndexType indexType = VK_INDEX_TYPE_UINT32 );
@@ -34,20 +29,19 @@ namespace Rhi {
         void Copy( Util::BufferHandle, Util::BufferHandle, VkBufferCopy * );
         void Copy( Util::BufferHandle, VkImage, VkBufferImageCopy * );
 
-        void BufferBarrier( Util::BufferHandle );
-        void ImageBarrier( VkImage, StageAccess, StageAccess, VkImageLayout, VkImageLayout, VkImageSubresourceRange = { .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .levelCount = 1, .layerCount = 1 } );
+        void BufferBarrier( Util::BufferHandle, VkPipelineStageFlags2, VkPipelineStageFlags2 );
+        void ImageBarrier( Texture *, VkImageLayout );
 
         void PushConstants( const void *, uint );
 
         void BeginDebugLabel( const char *, const float (&)[4] );
         void EndDebugLabel( void );
 
-        VkCommandBuffer GetCommandBuffer( void ) const { return mBuf; }
-
-    private:
-        friend class CommandPool;
-        VkCommandBuffer mBuf = VK_NULL_HANDLE;
+        VkCommandBuffer mBuf            = VK_NULL_HANDLE;
+        VkFence         mFence          = VK_NULL_HANDLE;
+        VkSemaphore     mSemaphore      = VK_NULL_HANDLE;
         const RenderPipeline * mBoundRP = nullptr;
+        bool            mReady          = true;
     };
 
     class CommandPool final : public Core::Singleton<CommandPool> {
@@ -56,12 +50,25 @@ namespace Rhi {
         void Destroy( void );
 
         CommandList * AcquireCommandList( void );
-        void Submit( CommandList *, VkImage );
-        void Submit( CommandList *, VkFence );
+        void Submit( CommandList *, Util::TextureHandle = {} );
 
-    private:        
+        void SetSwapchainAcquireSemaphore( VkSemaphore acquire ) { mSwapchainAcquireSemaphore = acquire; }
+
+        void WaitAll( void );
+
+    private:
+        static constexpr uint sMaxCommandLists = 16;
+
         VkCommandPool mCommandPool;
-        CommandList   mCommandList;
+        CommandList   mCommandLists[sMaxCommandLists];
+
+        uint          mCommandListCount = sMaxCommandLists;
+
+        VkSemaphore mLastSubmitSemaphore       = VK_NULL_HANDLE;
+        VkSemaphore mSwapchainAcquireSemaphore = VK_NULL_HANDLE;
+        VkSemaphore mTimelineSemaphore         = VK_NULL_HANDLE;
+
+        void Purge( void );
 
     };
 }

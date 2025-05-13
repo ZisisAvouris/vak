@@ -16,7 +16,7 @@ namespace Core {
         void InitWindow( void );
         void Run( void );
 
-        void PollEvents( void ); 
+        void PollEvents( void );
 
         void SetWindowResolution( uint2 resolution ) { mWinResolution = resolution; }
 
@@ -29,13 +29,11 @@ namespace Core {
             return mShouldCaptureInputs;
         }
 
-        float GetFPS( void ) const { return mFPS; }
-
     private:
         HWND      mWindowHandle = nullptr;
         HINSTANCE mWinInstance  = nullptr;
 
-        uint2     mWinResolution = { 1600, 900 }; 
+        uint2     mWinResolution = { 1920, 1080 };
         bool      mShouldClose   = false;
 
         LARGE_INTEGER mLastTime;
@@ -47,7 +45,6 @@ namespace Core {
 
         float mAccumulatedTime = 0.0f;
         uint  mFramesRendered  = 0;
-        float mFPS             = 0.0f;
         float mSampleInterval  = 0.5f;
 
         void RecenterCursor( void );

@@ -10,9 +10,6 @@
 [submodule "third-party/assimp"]
 	path = third-party/assimp
 	url = https://github.com/assimp/assimp
-[submodule "assets/models/sponza"]
-	path = assets/models/sponza
-	url = https://github.com/jimmiebergmann/Sponza
 [submodule "third-party/imgui"]
 	path = third-party/imgui
 	url = https://github.com/ocornut/imgui

@@ -23,20 +23,24 @@ void Rhi::StagingDevice::Destroy( void ) {
 
 void Rhi::StagingDevice::Upload( Util::BufferHandle handle, const void * data, size_t size ) {
     BufferMetadata * staging = Device::Instance()->GetBufferPool()->GetMetadata( mStagingBuffer );
+    Buffer * buf = Device::Instance()->GetBufferPool()->Get( handle );
 
-    memcpy( static_cast<_byte *>( staging->ptr ) + mCurrentOffset, data, size );
-    assert( mCurrentOffset < mStagingBufferCapacity );
-    
+    memcpy( static_cast<_byte *>( staging->ptr ), data, size );
+    assert( size < mStagingBufferCapacity );
+
+    VkPipelineStageFlags2 dstFlags = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+    if ( buf->usage & VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT ) dstFlags |= VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT;
+    if ( buf->usage & VK_BUFFER_USAGE_INDEX_BUFFER_BIT ) dstFlags |= VK_PIPELINE_STAGE_2_INDEX_INPUT_BIT;
+    if ( buf->usage & VK_BUFFER_USAGE_VERTEX_BUFFER_BIT ) dstFlags |= VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT;
+
     CommandList * cmdlist = CommandPool::Instance()->AcquireCommandList();
         VkBufferCopy copy = { .srcOffset = mCurrentOffset, .dstOffset = 0, .size = size };
         cmdlist->Copy( mStagingBuffer, handle, &copy );
-        cmdlist->BufferBarrier( handle );
-    CommandPool::Instance()->Submit( cmdlist, mStagingFence );
+        cmdlist->BufferBarrier( handle, VK_PIPELINE_STAGE_2_TRANSFER_BIT, dstFlags );
+    CommandPool::Instance()->Submit( cmdlist );
 
-    mCurrentOffset += size;
-    
-    vkWaitForFences( Device::Instance()->GetDevice(), 1, &mStagingFence, VK_TRUE, UINT64_MAX );
-    vkResetFences( Device::Instance()->GetDevice(), 1, &mStagingFence );
+    vkWaitForFences( Device::Instance()->GetDevice(), 1, &cmdlist->mFence, VK_TRUE, UINT64_MAX );
+    // vkResetFences( Device::Instance()->GetDevice(), 1, &cmdlist->mFence );
 }
 
 void Rhi::StagingDevice::Upload( Util::TextureHandle handle, const void * data ) {
@@ -44,13 +48,11 @@ void Rhi::StagingDevice::Upload( Util::TextureHandle handle, const void * data )
     Texture * tex = Device::Instance()->GetTexturePool()->Get( handle );
 
     const uint size = tex->extent.width * tex->extent.height * 4;
-    memcpy( static_cast<_byte *>( staging->ptr ) + mCurrentOffset, data, size );
-    assert( mCurrentOffset < mStagingBufferCapacity );
+    memcpy( static_cast<_byte *>( staging->ptr ), data, size );
+    assert( size < mStagingBufferCapacity );
 
     CommandList * cmdlist = CommandPool::Instance()->AcquireCommandList();
-        cmdlist->ImageBarrier( tex->image, { .stage = VK_PIPELINE_STAGE_2_TRANSFER_BIT, .access = VK_ACCESS_2_TRANSFER_WRITE_BIT },
-            { .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, .access = VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT },
-            VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL );
+        cmdlist->ImageBarrier( tex, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL );
         VkBufferImageCopy copy = {
             .bufferOffset      = mCurrentOffset,
             .bufferRowLength   = 0,
@@ -65,13 +67,9 @@ void Rhi::StagingDevice::Upload( Util::TextureHandle handle, const void * data )
             .imageExtent = tex->extent
         };
         cmdlist->Copy( mStagingBuffer, tex->image, &copy );
-        cmdlist->ImageBarrier( tex->image, { .stage = VK_PIPELINE_STAGE_2_TRANSFER_BIT, .access = VK_ACCESS_2_TRANSFER_WRITE_BIT },
-            { .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, .access = VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT },
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL );
-    CommandPool::Instance()->Submit( cmdlist, mStagingFence );
+        cmdlist->ImageBarrier( tex, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL );
+    CommandPool::Instance()->Submit( cmdlist );
 
-    mCurrentOffset += size;
-
-    vkWaitForFences( Device::Instance()->GetDevice(), 1, &mStagingFence, VK_TRUE, UINT64_MAX );
-    vkResetFences( Device::Instance()->GetDevice(), 1, &mStagingFence );
+    vkWaitForFences( Device::Instance()->GetDevice(), 1, &cmdlist->mFence, VK_TRUE, UINT64_MAX );
+    // vkResetFences( Device::Instance()->GetDevice(), 1, &cmdlist->mFence );
 }

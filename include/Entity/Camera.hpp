@@ -18,6 +18,8 @@ namespace Entity {
         void ProcessKeyInput( float );
 
     private:
+        static constexpr float sSlowSpeed = 5.0f, sFastSpeed = 10.0f;
+
         glm::vec3 mPosition;
         glm::vec3 mForward;
         glm::vec3 mRight;

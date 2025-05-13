@@ -16,15 +16,19 @@ namespace Rhi {
 
         void Resize( uint2 );
 
-        std::pair<VkImage, VkImageView> AcquireImage( void );
-        void Present( void );
+        Util::TextureHandle AcquireImage( void );
+        void Present( VkSemaphore );
 
-        VkSemaphore GetAcquireSemaphore( void ) const { return mAcquireSemaphore; }
-        VkSemaphore GetRenderCompleteSemaphore( void ) const { return mRenderCompleteSemaphore; }
-        VkFence GetRenderFence( void ) const { return mRenderFence; }
+        VkSemaphore GetAcquireSemaphore( void ) const { return mAcquireSemaphores[mCurrentFrame]; }
+        VkSemaphore GetRenderCompleteSemaphore( void ) const { return mRenderCompleteSemaphores[mCurrentFrame]; }
 
         VkFormat GetSurfaceFormat( void ) const { return mSurfaceFormat.format; }
         VkExtent2D GetSwapchainExtent( void ) const { return mSwapchainExtent; }
+
+        ulong GetCurrentFrame( void ) const { return mCurrentFrame; }
+        uint  GetImageCount( void ) const { return mNumSwapchainImages; }
+
+        void SetWaitValue( ulong value ) { mTimelineWaitValues[mCurrentImage] = value; }
 
     private:
         VkSwapchainKHR     mSwapchain;
@@ -34,13 +38,12 @@ namespace Rhi {
         VkImageUsageFlags  mSwapchainUsage;
         VkExtent2D         mSwapchainExtent;
 
-        uint                mNumSwapchainImages;
-        vector<VkImage>     mSwapchainImages;
-        vector<VkImageView> mSwapchainViews;
+        uint                        mNumSwapchainImages;
+        vector<Util::TextureHandle> mSwapchainImages;
 
-        VkSemaphore         mAcquireSemaphore;
-        VkSemaphore         mRenderCompleteSemaphore;
-        VkFence             mRenderFence;
+        VkSemaphore         mAcquireSemaphores[3];
+        VkSemaphore         mRenderCompleteSemaphores[3];
+        ulong               mTimelineWaitValues[3] = { 0 };
 
         uint                mCurrentImage = 0;
         ulong               mCurrentFrame = 0;

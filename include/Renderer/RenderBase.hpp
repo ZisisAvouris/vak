@@ -7,8 +7,13 @@
 #include <vk_mem_alloc.h>
 
 #include <string>
+#include <utility>
+#include <Util/Pool.hpp>
 
 namespace Rhi {
+    using std::pair;
+    using std::make_pair;
+
     // @todo: Revisit this split of hot and cold data for every resource
 
     struct BufferSpecification final {
@@ -65,6 +70,37 @@ namespace Rhi {
     static inline bool isStencilFormat( VkFormat format ) {
         return ( format == VK_FORMAT_S8_UINT ) || ( format == VK_FORMAT_D16_UNORM_S8_UINT ) || ( format == VK_FORMAT_D24_UNORM_S8_UINT ) || ( format == VK_FORMAT_D32_SFLOAT_S8_UINT );
     }
+    static inline VkImageAspectFlags GetAspectFlags( const TextureMetadata * metadata ) {
+        VkImageAspectFlags aspect;
+        if ( metadata->isDepth )   aspect |= VK_IMAGE_ASPECT_DEPTH_BIT;
+        if ( metadata->isStencil ) aspect |= VK_IMAGE_ASPECT_STENCIL_BIT;
+        if ( !metadata->isDepth && !metadata->isStencil ) aspect |= VK_IMAGE_ASPECT_COLOR_BIT;
+        return aspect;
+    }
+    static inline pair<VkPipelineStageFlags2, VkAccessFlags2> GetLayoutFlags( VkImageLayout layout ) {
+        switch ( layout ) {
+            case VK_IMAGE_LAYOUT_UNDEFINED:
+                return make_pair( VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, 0 );
+            case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR:
+                return make_pair( VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_NONE );
+            case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
+                return make_pair( VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_READ_BIT );
+            case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
+                return make_pair( VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT );
+            case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
+                return make_pair( VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT );
+            case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+                return make_pair( VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT );
+            case VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL:
+                return make_pair( VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
+                                  VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT );
+            case VK_IMAGE_LAYOUT_GENERAL:
+                return make_pair( VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT );
+            default:
+                printf("Invalid Image Layout %u\n", layout);
+                assert( false );
+        }
+    }
 
     struct SamplerSpecification final {
         VkFilter             minFilter = VK_FILTER_LINEAR;
@@ -108,25 +144,51 @@ namespace Rhi {
             return count;
         }
     };
-    
+
+    struct BlendSettings final {
+        VkBool32      enable       = VK_FALSE;
+        VkBlendOp     rgbBlendOp   = VK_BLEND_OP_ADD;
+        VkBlendFactor srcRgbBF     = VK_BLEND_FACTOR_ONE;
+        VkBlendFactor dstRgbBF     = VK_BLEND_FACTOR_ZERO;
+        VkBlendOp     alphaBlendOp = VK_BLEND_OP_ADD;
+        VkBlendFactor srcAlphaBF   = VK_BLEND_FACTOR_ONE;
+        VkBlendFactor dstAlphaBF   = VK_BLEND_FACTOR_ZERO;
+    };
     struct RenderPipelineSpecification final {
         VkPrimitiveTopology topology       = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
         VertexSpecification vertexSpec     = {};
+        BlendSettings       blend          = {};
         VkShaderModule      vertexShader   = VK_NULL_HANDLE;
         VkShaderModule      fragmentShader = VK_NULL_HANDLE;
         VkCullModeFlags     cullMode       = VK_CULL_MODE_NONE;
         VkFrontFace         winding        = VK_FRONT_FACE_COUNTER_CLOCKWISE;
         VkPolygonMode       polygonMode    = VK_POLYGON_MODE_FILL;
+        std::string         debugName      = "You should name this render pipeline!";
     };
     struct RenderPipeline final {
-        RenderPipelineSpecification spec;
-        uint bindingCount              = 0;
-        uint attributeCount            = 0;
-        VkVertexInputBindingDescription   bindings[sMaxVertexBindings];
-        VkVertexInputAttributeDescription attributes[sMaxVertexBindings];
-        VkShaderStageFlags shaderStage = 0;
-        VkPipelineLayout   layout      = VK_NULL_HANDLE;
         VkPipeline         pipeline    = VK_NULL_HANDLE;
+        VkPipelineLayout   layout      = VK_NULL_HANDLE;
+        VkShaderStageFlags shaderStage = 0;
+    };
+    struct RenderPipelineMetadata final {
+        std::string                       debugName      = "Render Pipeline: ";
+        RenderPipelineSpecification       spec           = {};
+        VkVertexInputBindingDescription   bindings[sMaxVertexBindings];
+        VkVertexInputAttributeDescription attributes[sMaxVertexAttributes];
+        uint                              bindingCount   = 0;
+        uint                              attributeCount = 0;
+    };
+
+    struct ShaderSpecification final {
+        std::string filename  = "";
+        std::string debugName = "You should name this shader!";
+    };
+    struct Shader final {
+        VkShaderModule sm = VK_NULL_HANDLE;
+    };
+    struct ShaderMetadata final {
+        std::string         debugName = "Shader: ";
+        ShaderSpecification spec      = {};
     };
 
 }

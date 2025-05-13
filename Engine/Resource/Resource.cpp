@@ -4,11 +4,11 @@
 namespace Resource {
     using namespace std;
 
-    Shader LoadShader( const string & filename ) {
+    ShaderFile LoadShader( const string & filename ) {
         ifstream ifs( filename, ios::binary | ios::ate );
         assert( ifs );
         
-        Shader result;
+        ShaderFile result;
 
         const auto end = ifs.tellg();
         ifs.seekg( 0, ios::beg );
@@ -55,20 +55,38 @@ namespace Resource {
         if ( lastSlashPos != std::string::npos ) mFilepath = filename.substr(0, lastSlashPos + 1 );
         else                                     return false;
 
-        uint totalVertices = 0, totalIndices = 0;
+        uint totalVertices = 0, totalIndices = 0, totalOpaqueMeshes = 0, totalTransparentMeshes = 0;
         for ( uint i = 0; i < scene->mNumMeshes; ++i ) {
             totalVertices += scene->mMeshes[i]->mNumVertices;
             totalIndices  += scene->mMeshes[i]->mNumFaces * 3;
+
+            const aiMaterial * material = scene->mMaterials[scene->mMeshes[i]->mMaterialIndex];
+
+            float opacity = 1.0f;
+            if ( material->Get( AI_MATKEY_OPACITY, opacity ) == AI_SUCCESS ) {
+                totalOpaqueMeshes += ( opacity == 1.0f );
+                mVertexCount += ( opacity == 1.0f ) * scene->mMeshes[i]->mNumVertices;
+                totalTransparentMeshes += ( opacity < 1.0f );
+            }
         }
-        mMeshCount = scene->mNumMeshes;
+        mMeshCount = totalOpaqueMeshes;
+        mOpaqueCount = totalOpaqueMeshes;
+        mTransparentCount = totalTransparentMeshes;
 
-        vector<Vertex> vertexData;           vertexData.reserve( totalVertices );
-        vector<uint> indexData;              indexData.reserve( totalIndices );
-        vector<VkDrawIndexedIndirectCommand> cmds; cmds.reserve( scene->mNumMeshes );
-        vector<DrawParameters> paramData;    paramData.reserve( scene->mNumMeshes );
-        vector<glm::mat4> transformData;     transformData.reserve( 1 ); // @todo: properly extract per node transform, may be required for gltf
+        vector<Vertex> vertexData;
+        vertexData.reserve( totalVertices );
+        vector<uint> indexData;
+        indexData.reserve( totalIndices );
+        vector<VkDrawIndexedIndirectCommand> opaqueCmds;
+        opaqueCmds.reserve( totalOpaqueMeshes );
+        vector<VkDrawIndexedIndirectCommand> transparentCmds;
+        transparentCmds.reserve( totalTransparentMeshes );
+        vector<DrawParameters> paramData;
+        paramData.reserve( scene->mNumMeshes );
+        vector<glm::mat4> transformData;
+        transformData.resize( scene->mNumMeshes );
 
-        uint indexStart = 0, vertexStart = 0;
+        uint indexStart = 0, vertexStart = 0, opaqueIndex = 0, transparentIndex = 0;
         for ( uint i = 0; i < scene->mNumMeshes; ++i ) {
             const aiMesh * mesh = scene->mMeshes[i];
 
@@ -89,33 +107,45 @@ namespace Resource {
                 indexData.emplace_back( mesh->mFaces[idx].mIndices[2] );
             }
 
-            cmds.emplace_back( VkDrawIndexedIndirectCommand {
-                .indexCount    = mesh->mNumFaces * 3,
-                .instanceCount = 1,
-                .firstIndex    = indexStart,
-                .vertexOffset  = (int)vertexStart,
-                .firstInstance = i
-            });
-            paramData.emplace_back( DrawParameters { .transformID = 0, .materialID = mesh->mMaterialIndex } );
-
             const aiMaterial * material = scene->mMaterials[mesh->mMaterialIndex];
-    
+
+            float opacity = 1.0f;
+            if ( material->Get( AI_MATKEY_OPACITY, opacity ) == AI_SUCCESS ) {
+                if ( opacity < 1.0f ) {
+                    transparentCmds.emplace_back( VkDrawIndexedIndirectCommand {
+                        .indexCount    = mesh->mNumFaces * 3,
+                        .instanceCount = 1,
+                        .firstIndex    = indexStart,
+                        .vertexOffset  = (int)vertexStart,
+                        .firstInstance = i
+                    });
+                } else {
+                    opaqueCmds.emplace_back( VkDrawIndexedIndirectCommand {
+                        .indexCount    = mesh->mNumFaces * 3,
+                        .instanceCount = 1,
+                        .firstIndex    = indexStart,
+                        .vertexOffset  = (int)vertexStart,
+                        .firstInstance = i
+                    });
+                }
+            }
+            paramData.emplace_back( DrawParameters { .transformID = i, .materialID = mesh->mMaterialIndex } );
+
             aiString path;
             if ( material->GetTexture( aiTextureType_DIFFUSE, 0, &path ) == AI_SUCCESS ) {
                 auto iter = std::find_if( mTextureFilenames.begin(), mTextureFilenames.end(), [materialIdx = mesh->mMaterialIndex] ( const auto & p ) {
                     return p.first == materialIdx;
                 });
-    
+
                 if ( iter == mTextureFilenames.end() )
-                    mTextureFilenames.push_back( { mesh->mMaterialIndex, std::string( path.C_Str() ) } );
+                mTextureFilenames.push_back( { mesh->mMaterialIndex, std::string( path.C_Str() ) } );
             }
 
             vertexStart += mesh->mNumVertices;
             indexStart  += mesh->mNumFaces * 3;
         }
         UploadTextures( paramData );
-
-        transformData.emplace_back( glm::mat4( 1.0f ) );
+        GetTransformMatrices( scene->mRootNode, scene, mTransform, transformData );
 
         mVertexBuffer = Rhi::Device::Instance()->CreateBuffer({
             .usage     = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
@@ -145,13 +175,20 @@ namespace Resource {
             .ptr       = paramData.data(),
             .debugName = filename + " Draw Parameters"
         });
-        mIndirectBuffer = Rhi::Device::Instance()->CreateBuffer({
+        mOpaqueIndirectBuffer = Rhi::Device::Instance()->CreateBuffer({
             .usage     = VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
             .storage   = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            .size      = static_cast<uint>( cmds.size() * sizeof( VkDrawIndexedIndirectCommand ) ),
-            .ptr       = cmds.data(),
-            .debugName = filename + " Indirect Commands"
+            .size      = static_cast<uint>( opaqueCmds.size() * sizeof( VkDrawIndexedIndirectCommand ) ),
+            .ptr       = opaqueCmds.data(),
+            .debugName = filename + " Opaque Indirect Commands"
         });
+        // mTransparentIndirectBuffer = Rhi::Device::Instance()->CreateBuffer({
+        //     .usage     = VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+        //     .storage   = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        //     .size      = static_cast<uint>( transparentCmds.size() * sizeof( VkDrawIndexedIndirectCommand ) ),
+        //     .ptr       = transparentCmds.data(),
+        //     .debugName = filename + " Transparent Indirect Commands"
+        // });
 
         aiReleaseImport( scene );
         return true;
@@ -159,32 +196,43 @@ namespace Resource {
 
     void Resource::Mesh::UploadTextures( span<DrawParameters> drawParams ) {
         mTextures.resize( mTextureFilenames.size() );
-        
+
         vector<bool> updated( mMeshCount, false );
         for ( uint i = 0; i < mTextureFilenames.size(); ++i ) {
             const auto & texPair = mTextureFilenames[i];
-    
+
             std::string texturePath = mFilepath + texPair.second;
             Image img = LoadTexture( texturePath );
-    
+
             mTextures[i] = Rhi::Device::Instance()->CreateTexture({
                 .type      = VK_IMAGE_TYPE_2D,
                 .format    = VK_FORMAT_R8G8B8A8_UNORM,
                 .extent    = { static_cast<uint>( img.width ), static_cast<uint>( img.height ), 1 },
                 .usage     = VK_IMAGE_USAGE_SAMPLED_BIT,
                 .data      = img.data,
-                .debugName = texPair.second 
+                .debugName = texPair.second
             });
-    
+
             for ( uint j = 0; j < mMeshCount; ++j ) {
                 if ( drawParams[j].materialID == texPair.first && !updated[j] ) {
                     drawParams[j].materialID = mTextures[i].Index();
                     updated[j]               = true;
                 }
             }
-    
+
             stbi_image_free( img.data );
         }
+    }
+
+    void Resource::Mesh::GetTransformMatrices( const aiNode * node, const aiScene * scene, const glm::mat4 & parentTransform, span<glm::mat4> transformBuffer ) {
+        glm::mat4 localTransform  = glm::transpose( glm::make_mat4( &node->mTransformation.a1 ) );
+        glm::mat4 globalTransform = parentTransform * localTransform;
+
+        for ( uint i = 0; i < node->mNumMeshes; ++i )
+            transformBuffer[node->mMeshes[i]] = globalTransform;
+
+        for ( uint i = 0; i < node->mNumChildren; ++i )
+            GetTransformMatrices( node->mChildren[i], scene, globalTransform, transformBuffer );
     }
 
 }

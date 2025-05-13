@@ -1,6 +1,7 @@
 #include <Core/WindowManager.hpp>
 #include <Core/Input.hpp>
 #include <Renderer/GUI.hpp>
+#include <Renderer/RenderStatistics.hpp>
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 LRESULT CALLBACK WindowProc( HWND windowHandle, UINT msg, WPARAM wParam, LPARAM lParam ) {
@@ -91,7 +92,7 @@ void Core::WindowManager::InitWindow( void ) {
     ShowCursor( FALSE );
     RecenterCursor();
 
-    Entity::Camera::Instance()->Init( glm::vec3( 0.0f, 200.0f, -50.0f ) );
+    Entity::Camera::Instance()->Init( glm::vec3( 0.0f, 2.0f, 0.0f ) );
     Input::KeyboardInputs::Instance()->SetKey( Input::Key_G, true );
 
     LARGE_INTEGER freq;
@@ -108,6 +109,7 @@ void Core::WindowManager::Run( void ) {
     LARGE_INTEGER currentTime;
     while ( !mShouldClose ) {
         PollEvents();
+        Rhi::RenderStats::Instance()->Reset();
 
         QueryPerformanceCounter( &currentTime );
         const float deltaTime = ( currentTime.QuadPart - mLastTime.QuadPart ) / mFrequency;
@@ -117,7 +119,7 @@ void Core::WindowManager::Run( void ) {
         ++mFramesRendered;
 
         if ( mAccumulatedTime > mSampleInterval ) {
-            mFPS = mFramesRendered / mAccumulatedTime;
+            Rhi::RenderStats::Instance()->fps = mFramesRendered / mAccumulatedTime;
             mFramesRendered  = 0;
             mAccumulatedTime = 0;
         }

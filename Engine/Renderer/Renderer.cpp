@@ -6,6 +6,10 @@
 #include <Renderer/Pipeline.hpp>
 #include <Renderer/Descriptors.hpp>
 #include <Renderer/GUI.hpp>
+#include <Renderer/Shader.hpp>
+#include <Renderer/RenderStatistics.hpp>
+#include <Renderer/Timeline.hpp>
+#include <Core/SceneGraph.hpp>
 #include <Core/Input.hpp>
 #include <stb_image.h>
 
@@ -15,17 +19,8 @@ void Rhi::Renderer::Init( uint2 renderResolution, void * windowHandle ) {
 
     RenderContext::Instance()->Init();
     Device::Instance()->Init();
-
-    Swapchain::Instance()->Init();
-    Swapchain::Instance()->Resize( mRenderResolution );
-    ComputeProjectionMatrix();
-    Descriptors::Instance()->Init();
-
-    mIsReady = true;
-
     CommandPool::Instance()->Init();
-    PipelineFactory::Instance()->Init();
-    GUI::Renderer::Instance()->Init( windowHandle );
+    Timeline::Instance()->Init();
 
     const uint pixel = 0xFFFF00FF;
     Device::Instance()->CreateTexture({
@@ -39,27 +34,25 @@ void Rhi::Renderer::Init( uint2 renderResolution, void * windowHandle ) {
     });
     assert( Device::Instance()->GetTexturePool()->GetEntryCount() == 1 );
 
-    assert( mMesh.LoadMeshFromFile( "assets/models/sponza/sponza.obj", aiProcess_FlipUVs | aiProcess_GenSmoothNormals ) );
+    Swapchain::Instance()->Init();
+    Swapchain::Instance()->Resize( mRenderResolution );
+    Timeline::Instance()->SignalTimeline( Swapchain::Instance()->GetImageCount() - 1 );
+    ComputeProjectionMatrix();
+    Descriptors::Instance()->Init();
 
-    vertexShader = Resource::LoadShader( "assets/shaders/shader.vert.spv" );
-    fragmentShader = Resource::LoadShader( "assets/shaders/shader.frag.spv" );
+    mIsReady = true;
 
-    VkShaderModuleCreateInfo vertCI = {
-        .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .codeSize = vertexShader.size,
-        .pCode    = vertexShader.byteCode,
-    };
-    vkCreateShaderModule( Device::Instance()->GetDevice(), &vertCI, nullptr, &smVert );
-    VkShaderModuleCreateInfo fragCI = {
-        .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .codeSize = fragmentShader.size,
-        .pCode    = fragmentShader.byteCode
-    };
-    vkCreateShaderModule( Device::Instance()->GetDevice(), &fragCI, nullptr, &smFrag );
-    delete[] vertexShader.byteCode;
-    delete[] fragmentShader.byteCode;
-    
-    opaquePipeline = PipelineFactory::Instance()->CreateRenderPipeline({
+    PipelineFactory::Instance()->Init();
+    ShaderManager::Instance()->Init();
+    GUI::Renderer::Instance()->Init( windowHandle );
+
+    assert( mSponza.LoadMeshFromFile( "assets/models/modern_sponza/NewSponza_Main_glTF_003.gltf", aiProcess_FlipUVs | aiProcess_GenSmoothNormals ) );
+    assert( mCurtains.LoadMeshFromFile( "assets/models/modern_sponza_curtains/NewSponza_Curtains_glTF.gltf", aiProcess_FlipUVs | aiProcess_GenSmoothNormals ) );
+
+    shMainVert = ShaderManager::Instance()->LoadShader( { "assets/shaders/shader.vert.spv", "Main Vertex" } );
+    shMainFrag = ShaderManager::Instance()->LoadShader( { "assets/shaders/shader.frag.spv", "Main Fragment" } );
+
+    pipelineOpaque = PipelineFactory::Instance()->CreateRenderPipeline({
         .vertexSpec     = {
             .attributes = { { .location = 0, .format = VK_FORMAT_R32G32B32_SFLOAT, .offset = offsetof( Vertex, position ) },
                             { .location = 1, .format = VK_FORMAT_R32G32B32_SFLOAT, .offset = offsetof( Vertex, normal ) },
@@ -67,9 +60,20 @@ void Rhi::Renderer::Init( uint2 renderResolution, void * windowHandle ) {
             },
             .bindings = { { .stride = sizeof( Vertex ) } }
         },
-        .vertexShader   = smVert,
-        .fragmentShader = smFrag,
+        .vertexShader   = ShaderManager::Instance()->GetShaderPool()->Get( shMainVert )->sm,
+        .fragmentShader = ShaderManager::Instance()->GetShaderPool()->Get( shMainFrag )->sm,
         .cullMode       = VK_CULL_MODE_BACK_BIT
+    });
+    pipelinePlane = PipelineFactory::Instance()->CreateRenderPipeline({
+        .vertexSpec     = {
+            .attributes = { { .location = 0, .format = VK_FORMAT_R32G32B32_SFLOAT, .offset = offsetof( Vertex, position ) },
+                            { .location = 1, .format = VK_FORMAT_R32G32B32_SFLOAT, .offset = offsetof( Vertex, normal ) },
+                            { .location = 2, .format = VK_FORMAT_R32G32_SFLOAT,    .offset = offsetof( Vertex, uv ) }
+            },
+            .bindings = { { .stride = sizeof( Vertex ) } }
+        },
+        .vertexShader   = ShaderManager::Instance()->GetShaderPool()->Get( shMainVert )->sm,
+        .fragmentShader = ShaderManager::Instance()->GetShaderPool()->Get( shMainFrag )->sm
     });
 
     depthBuffer = Device::Instance()->CreateTexture({
@@ -90,18 +94,18 @@ void Rhi::Renderer::Init( uint2 renderResolution, void * windowHandle ) {
 
     vector<Entity::PointLight> pointLights = {
         Entity::PointLight {
-            .position  = glm::vec3( -300.0f, 200.0f, 0.0f ),
+            .position  = glm::vec3( 5.0f, 2.0f, 0.0f ),
             .color     = glm::vec3( 1.0f, 0.0f, 0.0f ),
-            .intensity = 5.0f,
-            .linear    = 0.002f,
-            .quadratic = 0.00005f
+            .intensity = 2.0f,
+            .linear    = 0.22f,
+            .quadratic = 0.20f
         },
         Entity::PointLight {
-            .position  = glm::vec3( 300.0f, 200.0f, 0.0f ),
+            .position  = glm::vec3( -5.0f, 2.0f, 0.0f ),
             .color     = glm::vec3( 0.0f, 0.0f, 1.0f ),
-            .intensity = 5.0f,
-            .linear    = 0.002f,
-            .quadratic = 0.00005f
+            .intensity = 2.0f,
+            .linear    = 0.22f,
+            .quadratic = 0.20f
         }
     };
     lightCount = pointLights.size();
@@ -113,19 +117,17 @@ void Rhi::Renderer::Init( uint2 renderResolution, void * windowHandle ) {
         .ptr       = pointLights.data(),
         .debugName = "Point Lights"
     });
+
+    CommandPool::Instance()->WaitAll();
 }
 
 void Rhi::Renderer::Destroy( void ) {
     vkDeviceWaitIdle( Device::Instance()->GetDevice() );
 
-    vkDestroyPipelineLayout( Device::Instance()->GetDevice(), opaquePipeline.layout, nullptr );
-    vkDestroyPipeline( Device::Instance()->GetDevice(), opaquePipeline.pipeline, nullptr );
-
-    vkDestroyShaderModule( Device::Instance()->GetDevice(), smVert, nullptr );
-    vkDestroyShaderModule( Device::Instance()->GetDevice(), smFrag, nullptr );
-    
     GUI::Renderer::Instance()->Destroy();
+    ShaderManager::Instance()->Destroy();
     PipelineFactory::Instance()->Destroy();
+    Timeline::Instance()->Destroy();
     CommandPool::Instance()->Destroy();
     Descriptors::Instance()->Destroy();
     Swapchain::Instance()->Destroy();
@@ -155,43 +157,69 @@ void Rhi::Renderer::Resize( uint2 newResolution ) {
 }
 
 void Rhi::Renderer::Render( glm::vec3 cameraPosition, glm::mat4 view, float deltaTime ) {
-    auto [image, imageView] = Swapchain::Instance()->AcquireImage();
     CommandList * cmdlist = CommandPool::Instance()->AcquireCommandList();
+    currentSwapchain = Swapchain::Instance()->AcquireImage();
+
+    VmaTotalStatistics stats;
+    vmaCalculateStatistics( Device::Instance()->GetVMA(), &stats );
+    RenderStats::Instance()->vRamUsedGB = stats.total.statistics.allocationBytes / ( 1024.0f * 1024.0f * 1024.0f );
+    RenderStats::Instance()->totalVertices = mSponza.GetVertexCount() + mCurtains.GetVertexCount();
+    RenderStats::Instance()->renderResolution = mRenderResolution;
 
     Descriptors::Instance()->UpdateDescriptorSets();
-    cmdlist->BeginRendering( mRenderResolution, image, imageView, depthBuffer );
-        cmdlist->BeginDebugLabel( "Sponza", { 1.0f, 0.0f, 1.0f, 1.0f } );
-            cmdlist->BindRenderPipeline( opaquePipeline );
-            cmdlist->BindVertexBuffer( mMesh.mVertexBuffer );
-            cmdlist->BindIndexBuffer( mMesh.mIndexBuffer );
+    cmdlist->BeginRendering( currentSwapchain, depthBuffer );
+        struct PushConstants {
+            glm::mat4 viewProj;
+            ulong     lightBuffer;
+            uint      lightCount;      uint _pad1;
+            glm::vec3 cameraPosition;  uint _pad0;
+            ulong     transformBuffer;
+            ulong     drawParamBuffer;
+        };
 
-            struct PushConstants {
-                glm::mat4 viewProj;
-                ulong     lightBuffer;
-                uint      lightCount;      uint _pad1;
-                glm::vec3 cameraPosition;  uint _pad0;
-                ulong     transformBuffer;
-                ulong     drawParamBuffer;
-            } pc = {
-                .viewProj         = mProjection * view,
-                .lightBuffer      = Device::Instance()->DeviceAddress( lightBuffer ),
-                .lightCount       = lightCount,
-                .cameraPosition   = cameraPosition,
-                .transformBuffer  = Device::Instance()->DeviceAddress( mMesh.mTransformBuffer ),
-                .drawParamBuffer  = Device::Instance()->DeviceAddress( mMesh.mDrawParamBuffer )
-            };
-            static_assert( sizeof( PushConstants ) <= 128 );
+        PushConstants pc1 = {
+            .viewProj         = mProjection * view,
+            .lightBuffer      = Device::Instance()->DeviceAddress( lightBuffer ),
+            .lightCount       = lightCount,
+            .cameraPosition   = cameraPosition,
+            .transformBuffer  = Device::Instance()->DeviceAddress( mSponza.mTransformBuffer ),
+            .drawParamBuffer  = Device::Instance()->DeviceAddress( mSponza.mDrawParamBuffer ),
+        };
+        static_assert( sizeof( PushConstants ) <= 128 );
 
-            cmdlist->PushConstants( &pc, sizeof( PushConstants ) );
-            cmdlist->DrawIndexedIndirect( mMesh.mIndirectBuffer, 0, mMesh.GetMeshCount(), sizeof( VkDrawIndexedIndirectCommand ) );
+        cmdlist->BeginDebugLabel( "Sponza Opaque", { 1.0f, 0.0f, 1.0f, 1.0f } );
+            cmdlist->BindVertexBuffer( mSponza.mVertexBuffer );
+            cmdlist->BindIndexBuffer( mSponza.mIndexBuffer );
+            cmdlist->BindRenderPipeline( pipelineOpaque );
+            cmdlist->PushConstants( &pc1, sizeof( PushConstants ) );
+            cmdlist->DrawIndexedIndirect( mSponza.mOpaqueIndirectBuffer, mSponza.GetOpaqueMeshCount() );
         cmdlist->EndDebugLabel();
 
-        if ( Input::KeyboardInputs::Instance()->GetKey( Input::Key_G ) )
+        PushConstants pc2 = {
+            .viewProj        = pc1.viewProj,
+            .lightBuffer     = Device::Instance()->DeviceAddress( lightBuffer ),
+            .lightCount      = lightCount,
+            .cameraPosition  = cameraPosition,
+            .transformBuffer = Device::Instance()->DeviceAddress( mCurtains.mTransformBuffer ),
+            .drawParamBuffer = Device::Instance()->DeviceAddress( mCurtains.mDrawParamBuffer )
+        };
+
+        cmdlist->BeginDebugLabel( "Sponza Curtains", { 0.0f, 0.0f, 1.0f, 1.0f } );
+            cmdlist->BindVertexBuffer( mCurtains.mVertexBuffer );
+            cmdlist->BindIndexBuffer( mCurtains.mIndexBuffer );
+            cmdlist->BindRenderPipeline( pipelinePlane );
+            cmdlist->PushConstants( &pc2, sizeof( PushConstants ) );
+            cmdlist->DrawIndexedIndirect( mCurtains.mOpaqueIndirectBuffer, mCurtains.GetOpaqueMeshCount() );
+        cmdlist->EndDebugLabel();
+
+        if ( Input::KeyboardInputs::Instance()->GetKey( Input::Key_G ) ) {
+            cmdlist->BeginDebugLabel( "GUI", { 0.0f, 1.0f, 0.0f, 1.0f } );
             GUI::Renderer::Instance()->Render( cmdlist );
+            cmdlist->EndDebugLabel();
+        }
     cmdlist->EndRendering();
-    
-    CommandPool::Instance()->Submit( cmdlist, image );
-    Swapchain::Instance()->Present();
+
+    CommandPool::Instance()->Submit( cmdlist, currentSwapchain );
 }
 
 void Rhi::Renderer::ComputeProjectionMatrix( void ) {
@@ -209,10 +237,14 @@ void Rhi::Renderer::ComputeProjectionMatrix( void ) {
 }
 
 void Rhi::Renderer::DebugPrintStructSizes( void ) {
-    printf( "[DEBUG] Texture         size: %llu\n", sizeof( Texture ) );
-    printf( "[DEBUG] TextureMetadata size: %llu\n", sizeof( TextureMetadata ) );
-    printf( "[DEBUG] Buffer          size: %llu\n", sizeof( Buffer ) );
-    printf( "[DEBUG] BufferMetadata  size: %llu\n", sizeof( BufferMetadata ) );
-    printf( "[DEBUG] Sampler         size: %llu\n", sizeof( Sampler ) );
-    printf( "[DEBUG] SamplerMetadata size: %llu\n", sizeof( SamplerMetadata ) );
+    printf( "[DEBUG] Texture                size: %llu\n", sizeof( Texture ) );
+    printf( "[DEBUG] TextureMetadata        size: %llu\n", sizeof( TextureMetadata ) );
+    printf( "[DEBUG] Buffer                 size: %llu\n", sizeof( Buffer ) );
+    printf( "[DEBUG] BufferMetadata         size: %llu\n", sizeof( BufferMetadata ) );
+    printf( "[DEBUG] Sampler                size: %llu\n", sizeof( Sampler ) );
+    printf( "[DEBUG] SamplerMetadata        size: %llu\n", sizeof( SamplerMetadata ) );
+    printf( "[DEBUG] RenderPipeline         size: %llu\n", sizeof( RenderPipeline ) );
+    printf( "[DEBUG] RenderPipelineMetadata size: %llu\n", sizeof( RenderPipelineMetadata) );
+    printf( "[DEBUG] Shader                 size: %llu\n", sizeof( Shader ) );
+    printf( "[DEBUG] ShaderMetadata         size: %llu\n", sizeof( ShaderMetadata ) );
 }

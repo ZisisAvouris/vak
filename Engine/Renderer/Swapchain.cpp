@@ -1,4 +1,6 @@
 #include <Renderer/Swapchain.hpp>
+#include <Renderer/Timeline.hpp>
+#include <Renderer/CommandPool.hpp>
 
 void Rhi::Swapchain::Init( void ) {
     mSurfaceFormat   = PickSwapchainFormat( Device::Instance()->GetSurfaceFormats() );
@@ -9,7 +11,7 @@ void Rhi::Swapchain::Init( void ) {
 
     VkFormatProperties props = {};
     vkGetPhysicalDeviceFormatProperties( Device::Instance()->GetPhysicalDevice(), mSwapchainFormat, &props );
-    
+
     const bool isStorageSupported = ( Device::Instance()->GetSurfaceCapabilities()->supportedUsageFlags & VK_IMAGE_USAGE_STORAGE_BIT ) > 0;
     const bool isTilingOptimal    = ( props.optimalTilingFeatures & VK_IMAGE_USAGE_STORAGE_BIT ) > 0;
 
@@ -19,11 +21,9 @@ void Rhi::Swapchain::Init( void ) {
 
 void Rhi::Swapchain::Destroy( void ) {
     for ( uint i = 0; i < mNumSwapchainImages; ++i ) {
-        vkDestroyImageView( Device::Instance()->GetDevice(), mSwapchainViews[i], nullptr );
+        vkDestroySemaphore( Device::Instance()->GetDevice(), mAcquireSemaphores[i], nullptr );
+        vkDestroySemaphore( Device::Instance()->GetDevice(), mRenderCompleteSemaphores[i], nullptr );
     }
-    vkDestroySemaphore( Device::Instance()->GetDevice(), mAcquireSemaphore, nullptr );
-    vkDestroySemaphore( Device::Instance()->GetDevice(), mRenderCompleteSemaphore, nullptr );
-    vkDestroyFence( Device::Instance()->GetDevice(), mRenderFence, nullptr );
     vkDestroySwapchainKHR( Device::Instance()->GetDevice(), mSwapchain, nullptr );
     mSwapchain = VK_NULL_HANDLE;
 }
@@ -33,7 +33,7 @@ void Rhi::Swapchain::Resize( uint2 newResolution ) {
         Destroy();
     Device::Instance()->QuerySurfaceCapabilities();
     mSwapchainExtent = { newResolution.x, newResolution.y };
-    
+
     const uint minImages = Device::Instance()->GetSurfaceCapabilities()->minImageCount + 1;
     const uint maxImages = Device::Instance()->GetSurfaceCapabilities()->maxImageCount;
 
@@ -60,17 +60,18 @@ void Rhi::Swapchain::Resize( uint2 newResolution ) {
     };
     assert( vkCreateSwapchainKHR( Device::Instance()->GetDevice(), &ci, nullptr, &mSwapchain ) == VK_SUCCESS );
 
-    mSwapchainImages.resize( mNumSwapchainImages ); 
-    vkGetSwapchainImagesKHR( Device::Instance()->GetDevice(), mSwapchain, &mNumSwapchainImages, mSwapchainImages.data() );
+    VkImage swapchainImages[4];
+    mSwapchainImages.resize( mNumSwapchainImages );
+    vkGetSwapchainImagesKHR( Device::Instance()->GetDevice(), mSwapchain, &mNumSwapchainImages, swapchainImages );
 
-    mSwapchainViews.resize( mNumSwapchainImages );
+    VkImageView swapchainViews[4];
     for ( uint i = 0; i < mNumSwapchainImages; ++i ) {
         VkImageViewCreateInfo ivci = {
-            .sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-            .image      = mSwapchainImages[i],
-            .viewType   = VK_IMAGE_VIEW_TYPE_2D,
-            .format     = mSwapchainFormat,
-            .components = { VK_COMPONENT_SWIZZLE_IDENTITY },
+            .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            .image            = swapchainImages[i],
+            .viewType         = VK_IMAGE_VIEW_TYPE_2D,
+            .format           = mSwapchainFormat,
+            .components       = { VK_COMPONENT_SWIZZLE_IDENTITY },
             .subresourceRange = {
                 .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
                 .baseMipLevel   = 0,
@@ -79,34 +80,54 @@ void Rhi::Swapchain::Resize( uint2 newResolution ) {
                 .layerCount     = 1
             }
         };
-        assert( vkCreateImageView( Device::Instance()->GetDevice(), &ivci, nullptr, &mSwapchainViews[i] ) == VK_SUCCESS );
+        assert( vkCreateImageView( Device::Instance()->GetDevice(), &ivci, nullptr, &swapchainViews[i] ) == VK_SUCCESS );
+
+        Texture tex = {
+            .image  = swapchainImages[i],
+            .view   = swapchainViews[i],
+            .extent = { newResolution.x, newResolution.y, 1 },
+            .type   = VK_IMAGE_TYPE_2D,
+            .format = mSwapchainFormat
+        };
+        TextureMetadata metadata = {
+            .debugName   = "Swapchain " + std::to_string(i),
+            .isSwapchain = true,
+        };
+        mSwapchainImages[i] = Device::Instance()->GetTexturePool()->Create( std::move( tex ), std::move( metadata ) );
+
+        VkSemaphoreCreateInfo sci = { .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
+        assert( vkCreateSemaphore( Device::Instance()->GetDevice(), &sci, nullptr, &mAcquireSemaphores[i] ) == VK_SUCCESS );
+        Device::Instance()->RegisterDebugObjectName( VK_OBJECT_TYPE_SEMAPHORE, (ulong)mAcquireSemaphores[i], "Swapchain Acquire Semaphore " + std::to_string(i) );
     }
-    VkSemaphoreCreateInfo sci = { .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
-    assert( vkCreateSemaphore( Device::Instance()->GetDevice(), &sci, nullptr, &mAcquireSemaphore ) == VK_SUCCESS );
-    assert( vkCreateSemaphore( Device::Instance()->GetDevice(), &sci, nullptr, &mRenderCompleteSemaphore ) == VK_SUCCESS );
-
-    VkFenceCreateInfo fci = { .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, .flags = VK_FENCE_CREATE_SIGNALED_BIT };
-    assert( vkCreateFence( Device::Instance()->GetDevice(), &fci, nullptr, &mRenderFence ) == VK_SUCCESS );
 }
 
-std::pair<VkImage, VkImageView> Rhi::Swapchain::AcquireImage( void ) {
-    vkWaitForFences( Device::Instance()->GetDevice(), 1, &mRenderFence, VK_TRUE, UINT64_MAX );
-    vkResetFences( Device::Instance()->GetDevice(), 1, &mRenderFence );
+Util::TextureHandle Rhi::Swapchain::AcquireImage( void ) {
+    VkSemaphore timeline = Timeline::Instance()->GetTimeline();
+    VkSemaphoreWaitInfo waitSemaphore = {
+        .sType          = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO_KHR,
+        .semaphoreCount = 1,
+        .pSemaphores    = &timeline,
+        .pValues        = &mTimelineWaitValues[mCurrentImage]
+    };
+    assert( vkWaitSemaphores( Device::Instance()->GetDevice(), &waitSemaphore, UINT64_MAX ) == VK_SUCCESS );
 
-    assert( vkAcquireNextImageKHR( Device::Instance()->GetDevice(), mSwapchain, UINT64_MAX, mAcquireSemaphore, VK_NULL_HANDLE, &mCurrentImage ) == VK_SUCCESS );
-    return std::make_pair( mSwapchainImages[mCurrentImage], mSwapchainViews[mCurrentImage] );
+    VkSemaphore acquire = mAcquireSemaphores[mCurrentImage];
+    assert( vkAcquireNextImageKHR( Device::Instance()->GetDevice(), mSwapchain, UINT64_MAX, acquire, VK_NULL_HANDLE, &mCurrentImage ) == VK_SUCCESS );
+    CommandPool::Instance()->SetSwapchainAcquireSemaphore( acquire );
+    return mSwapchainImages[mCurrentImage];
 }
 
-void Rhi::Swapchain::Present( void ) {
+void Rhi::Swapchain::Present( VkSemaphore submitWaitSemaphore ) {
     VkPresentInfoKHR presentInfo = {
         .sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
         .waitSemaphoreCount = 1,
-        .pWaitSemaphores    = &mRenderCompleteSemaphore,
+        .pWaitSemaphores    = &submitWaitSemaphore,
         .swapchainCount     = 1,
         .pSwapchains        = &mSwapchain,
         .pImageIndices      = &mCurrentImage
     };
     vkQueuePresentKHR( Device::Instance()->GetQueue( QueueType_Graphics ), &presentInfo );
+    Timeline::Instance()->IncrementFrame();
 }
 
 VkSurfaceFormatKHR Rhi::Swapchain::PickSwapchainFormat( span<const VkSurfaceFormatKHR> formats ) {

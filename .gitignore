@@ -37,3 +37,4 @@
 build/*
 out/*
 imgui.ini
+assets/models/*

@@ -41,6 +41,10 @@ namespace Rhi {
 
     };
 
+    using TexturePool = Util::Pool<Util::_Texture, Texture, TextureMetadata>;
+    using BufferPool  = Util::Pool<Util::_Buffer, Buffer, BufferMetadata>;
+    using SamplerPool = Util::Pool<Util::_Sampler, Sampler, SamplerMetadata>;
+
     class Device final : public Core::Singleton<Device> {
     public:
         void Init( void );
@@ -66,9 +70,9 @@ namespace Rhi {
 
         VmaAllocator GetVMA( void ) const { return mVma; }
 
-        Util::Pool<Util::_Texture, Texture, TextureMetadata> * GetTexturePool( void ) { return &mTexturePool; }
-        Util::Pool<Util::_Buffer, Buffer, BufferMetadata> * GetBufferPool( void ) { return &mBufferPool; }
-        Util::Pool<Util::_Sampler, Sampler, SamplerMetadata> * GetSamplerPool( void ) { return &mSamplerPool; }
+        TexturePool * GetTexturePool( void ) { return &mTexturePool; }
+        BufferPool  * GetBufferPool( void )  { return &mBufferPool;  }
+        SamplerPool * GetSamplerPool( void ) { return &mSamplerPool; }
 
         Util::TextureHandle CreateTexture( const TextureSpecification & );
         Util::BufferHandle  CreateBuffer( const BufferSpecification & );
@@ -83,7 +87,9 @@ namespace Rhi {
         VkImageView CreateImageView( VkImage, VkFormat, VkImageAspectFlags );
 
         void QuerySurfaceCapabilities( void );
-    
+
+        void RegisterDebugObjectName( VkObjectType, ulong, const std::string & );
+
     private:
         VkSurfaceKHR     mSurface        = VK_NULL_HANDLE;
         VkPhysicalDevice mPhysicalDevice = VK_NULL_HANDLE;
@@ -97,9 +103,9 @@ namespace Rhi {
         vector<VkFormat>           mDeviceDepthFormats;
         VkSurfaceCapabilitiesKHR   mSurfaceCapabilities;
 
-        Util::Pool<Util::_Texture, Texture, TextureMetadata>  mTexturePool{ 64, "Texture" };
-        Util::Pool<Util::_Sampler, Sampler, SamplerMetadata> mSamplerPool{ 8, "Sampler" };
-        Util::Pool<Util::_Buffer, Buffer, BufferMetadata>    mBufferPool{ 1024, "Buffer" };
+        TexturePool        mTexturePool { 64, "Texture" };
+        SamplerPool        mSamplerPool {  8, "Sampler" };
+        BufferPool         mBufferPool  { 64, "Buffer"  };
 
         // The dummy textures serves as a placeholder for the bindless array of textures that are not sampled (e.g. swapchain, depth etc),
         // in order to avoid a sparse array and problems with indices
@@ -109,8 +115,6 @@ namespace Rhi {
 
         void PickPhysicalDevice( VkPhysicalDeviceType );
         void CreateLogicalDevice( void );
-
-        void RegisterDebugObjectName( VkObjectType, ulong, const std::string & );
 
         uint FindQueueFamilyIndex( span<const VkQueueFamilyProperties>, VkQueueFlags, VkQueueFlags );
     };

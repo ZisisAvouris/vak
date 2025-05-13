@@ -14,7 +14,7 @@ set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 
 if(MSVC)
     add_compile_options(/W4 /MP /std:c++20 /permissive- /Zi)
-    add_compile_definitions(-D_UNICODE -DUNICODE)
+    add_compile_definitions(-D_UNICODE -DUNICODE -DNOMINMAX)
 endif()
 
 file(GLOB_RECURSE SOURCES

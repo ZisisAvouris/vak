@@ -4,6 +4,7 @@
 #include <Renderer/Pipeline.hpp>
 #include <Renderer/Swapchain.hpp>
 #include <Core/WindowManager.hpp>
+#include <Renderer/RenderStatistics.hpp>
 
 void GUI::Renderer::Init( void * windowHandle ) {
     IMGUI_CHECKVERSION();
@@ -55,15 +56,19 @@ void GUI::Renderer::Render( Rhi::CommandList * cmdlist ) {
     ImGui::PushStyleVar( ImGuiStyleVar_WindowBorderSize, 0.0f );
     ImGui::Begin( "Render Stats: ", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoDecoration
         | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoInputs );
-    const float fps = Core::WindowManager::Instance()->GetFPS();
-    ImGui::Text( "FPS: %d", (int)fps );
-    ImGui::Text( "Frametime: %.2f ms", 1000.0f / fps );
-    ImGui::End(); 
+    ImGui::Text( "FPS: %d", (int)Rhi::RenderStats::Instance()->fps );
+    ImGui::Text( "Frametime: %.2f ms", 1000.0f / Rhi::RenderStats::Instance()->fps );
+    ImGui::Text( "Render Resolution: %ux%u", Rhi::RenderStats::Instance()->renderResolution.x, Rhi::RenderStats::Instance()->renderResolution.y );
+    ImGui::Text( "Draw Calls (CPU): %u", Rhi::RenderStats::Instance()->cpuDrawCalls );
+    ImGui::Text( "Draw Calls (Indirect): %u", Rhi::RenderStats::Instance()->indirectDrawCalls );
+    ImGui::Text( "Total VRAM used: %.2f GB", Rhi::RenderStats::Instance()->vRamUsedGB );
+    ImGui::Text( "Total Vertices: %u", Rhi::RenderStats::Instance()->totalVertices );
+    ImGui::End();
     ImGui::PopStyleVar();
 
     ImGui::Render();
 
     cmdlist->BeginDebugLabel( "GUI", { 0.0f, 1.0f, 0.0f, 1.0f } );
-    ImGui_ImplVulkan_RenderDrawData( ImGui::GetDrawData(), cmdlist->GetCommandBuffer() );
+    ImGui_ImplVulkan_RenderDrawData( ImGui::GetDrawData(), cmdlist->mBuf );
     cmdlist->EndDebugLabel();
 }

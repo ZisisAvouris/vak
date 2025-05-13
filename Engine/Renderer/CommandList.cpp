@@ -1,34 +1,38 @@
 #include <Renderer/CommandPool.hpp>
 #include <Renderer/Descriptors.hpp>
+#include <Renderer/Pipeline.hpp>
 #include <Renderer/Device.hpp>
+#include <Renderer/RenderStatistics.hpp>
 
-void Rhi::CommandList::BeginRendering( uint2 res, VkImage image, VkImageView view, Util::TextureHandle dbHandle ) {
-    Texture * db = Device::Instance()->GetTexturePool()->Get( dbHandle );
+void Rhi::CommandList::BeginRendering( Util::TextureHandle fbHandle, Util::TextureHandle dbHandle ) {
+    Texture * fb = Device::Instance()->GetTexturePool()->Get( fbHandle );
+    assert( fb );
 
-    ImageBarrier( image, { VK_PIPELINE_STAGE_NONE, 0 }, { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT },
-        VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL );
-    ImageBarrier( db->image, { VK_PIPELINE_STAGE_2_NONE, 0 },
-        { VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT, VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT },
-        VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, { .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT, .levelCount = 1, .layerCount = 1 } );
-
+    ImageBarrier( fb, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL );
     VkRenderingAttachmentInfo colorAttachment = {
         .sType       = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-        .imageView   = view,
-        .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        .imageView   = fb->view,
+        .imageLayout = fb->layout,
         .loadOp      = VK_ATTACHMENT_LOAD_OP_CLEAR,
         .storeOp     = VK_ATTACHMENT_STORE_OP_STORE,
         .clearValue  = { .color = { 0.0f, 0.0f, 0.0f, 1.0f } }
     };
-    VkRenderingAttachmentInfo depthAttachment = {
-        .sType       = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-        .imageView   = db->view,
-        .imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
-        .loadOp      = VK_ATTACHMENT_LOAD_OP_CLEAR,
-        .storeOp     = VK_ATTACHMENT_STORE_OP_STORE,
-        .clearValue  = { .depthStencil = { .depth = 0.0f } }
-    };
 
-    VkRect2D renderArea = { {0,0}, {res.x, res.y} };
+    VkRenderingAttachmentInfo depthAttachment = {};
+    if ( dbHandle.Valid() ) {
+        Texture * db = Device::Instance()->GetTexturePool()->Get( dbHandle );
+        ImageBarrier( db, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL );
+        depthAttachment = {
+            .sType       = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+            .imageView   = db->view,
+            .imageLayout = db->layout,
+            .loadOp      = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .storeOp     = VK_ATTACHMENT_STORE_OP_STORE,
+            .clearValue  = { .depthStencil = { .depth = 0.0f } }
+        };
+    }
+
+    const VkRect2D renderArea = { { 0, 0 }, { fb->extent.width, fb->extent.height } };
     VkRenderingInfoKHR renderInfo = {
         .sType                = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR,
         .renderArea           = renderArea,
@@ -36,11 +40,11 @@ void Rhi::CommandList::BeginRendering( uint2 res, VkImage image, VkImageView vie
         .viewMask             = 0,
         .colorAttachmentCount = 1,
         .pColorAttachments    = &colorAttachment,
-        .pDepthAttachment     = &depthAttachment
+        .pDepthAttachment     = dbHandle.Valid() ? &depthAttachment : nullptr
     };
 
     vkCmdSetScissor( mBuf, 0, 1, &renderArea );
-    const VkViewport viewport = { 0.0f, 0.0f, (float)res.x, (float)res.y, 0.0f, 1.0f };
+    const VkViewport viewport = { 0.0f, 0.0f, (float)fb->extent.width, (float)fb->extent.height, 0.0f, 1.0f };
     vkCmdSetViewport( mBuf, 0, 1, &viewport );
     vkCmdBeginRendering( mBuf, &renderInfo );
 }
@@ -50,25 +54,32 @@ void Rhi::CommandList::EndRendering( void ) {
 }
 
 void Rhi::CommandList::Draw( uint vertexCount, uint instanceCount, uint firstVertex, uint firstInstance ) {
+    RenderStats::Instance()->cpuDrawCalls++;
     vkCmdDraw( mBuf, vertexCount, instanceCount, firstVertex, firstInstance );
 }
 
 void Rhi::CommandList::DrawIndexed( uint indexCount, uint instanceCount, uint firstIndex, uint vertexOffset, uint firstInstance ) {
+    RenderStats::Instance()->cpuDrawCalls++;
     vkCmdDrawIndexed( mBuf, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance );
 }
 
-void Rhi::CommandList::DrawIndexedIndirect( Util::BufferHandle indirectBuffer, size_t offset, uint drawCount, uint stride ) {
+void Rhi::CommandList::DrawIndexedIndirect( Util::BufferHandle indirectBuffer, uint drawCount ) {
     Buffer * buf = Device::Instance()->GetBufferPool()->Get( indirectBuffer );
-    vkCmdDrawIndexedIndirect( mBuf, buf->buf, offset, drawCount, stride );
+    RenderStats::Instance()->cpuDrawCalls++;
+    RenderStats::Instance()->indirectDrawCalls += drawCount;
+    vkCmdDrawIndexedIndirect( mBuf, buf->buf, 0, drawCount, sizeof( VkDrawIndexedIndirectCommand ) );
 }
 
-void Rhi::CommandList::BindRenderPipeline( const RenderPipeline & rp ) {
-    vkCmdBindPipeline( mBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, rp.pipeline );
+void Rhi::CommandList::BindRenderPipeline( Util::RenderPipelineHandle handle ) {
+    RenderPipeline * rp = PipelineFactory::Instance()->GetRenderPipelinePool()->Get( handle );
+    if ( !rp ) assert( false );
+
+    vkCmdBindPipeline( mBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, rp->pipeline );
 
     VkDescriptorSet dset = Descriptors::Instance()->GetDescriptorSet();
-    vkCmdBindDescriptorSets( mBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, rp.layout, 0, 1, &dset, 0, nullptr );
+    vkCmdBindDescriptorSets( mBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, rp->layout, 0, 1, &dset, 0, nullptr );
 
-    mBoundRP = &rp;
+    mBoundRP = rp;
 }
 
 void Rhi::CommandList::BindVertexBuffer( Util::BufferHandle handle ) {
@@ -93,12 +104,13 @@ void Rhi::CommandList::Copy( Util::BufferHandle stagingBuf, VkImage image, VkBuf
     vkCmdCopyBufferToImage( mBuf, staging->buf, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, copy );
 }
 
-void Rhi::CommandList::BufferBarrier( Util::BufferHandle handle ) {
+void Rhi::CommandList::BufferBarrier( Util::BufferHandle handle, VkPipelineStageFlags2 srcStage, VkPipelineStageFlags2 dstStage ) {
     Buffer * buf = Device::Instance()->GetBufferPool()->Get( handle );
     VkBufferMemoryBarrier2 barrier = {
         .sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
-        .srcStageMask        = VK_PIPELINE_STAGE_2_COPY_BIT,
-        .srcAccessMask       = VK_ACCESS_2_TRANSFER_WRITE_BIT,
+        .srcStageMask        = srcStage,
+        .srcAccessMask       = 0,
+        .dstStageMask        = dstStage,
         .dstAccessMask       = 0,
         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
@@ -106,16 +118,23 @@ void Rhi::CommandList::BufferBarrier( Util::BufferHandle handle ) {
         .offset              = 0,
         .size                = buf->size
     };
-    VkPipelineStageFlags dstStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
-    if ( buf->usage & VK_BUFFER_USAGE_VERTEX_BUFFER_BIT ) {
-        dstStageMask          |= VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
-        barrier.dstAccessMask |= VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
-    } else if ( buf->usage & VK_BUFFER_USAGE_INDEX_BUFFER_BIT ) {
-        dstStageMask          |= VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
-        barrier.dstAccessMask |= VK_ACCESS_INDEX_READ_BIT;
+    if (srcStage & VK_PIPELINE_STAGE_2_TRANSFER_BIT) {
+        barrier.srcAccessMask |= VK_ACCESS_2_TRANSFER_READ_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT;
+    } else {
+        barrier.srcAccessMask |= VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
     }
 
-    barrier.dstStageMask = dstStageMask;
+    if (dstStage & VK_PIPELINE_STAGE_2_TRANSFER_BIT) {
+        barrier.dstAccessMask |= VK_ACCESS_2_TRANSFER_READ_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT;
+    } else {
+        barrier.dstAccessMask |= VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
+    }
+    if (dstStage & VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT) {
+        barrier.dstAccessMask |= VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
+    }
+    if (buf->usage & VK_BUFFER_USAGE_INDEX_BUFFER_BIT) {
+        barrier.dstAccessMask |= VK_ACCESS_2_INDEX_READ_BIT;
+    }
     const VkDependencyInfo depInfo = {
         .sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
         .bufferMemoryBarrierCount = 1,
@@ -124,18 +143,28 @@ void Rhi::CommandList::BufferBarrier( Util::BufferHandle handle ) {
     vkCmdPipelineBarrier2( mBuf, &depInfo );
 }
 
-void Rhi::CommandList::ImageBarrier( VkImage image, StageAccess src, StageAccess dst, VkImageLayout oldLayout, VkImageLayout newLayout, VkImageSubresourceRange range ) {
+void Rhi::CommandList::ImageBarrier( Texture * tex, VkImageLayout newLayout ) {
+    const auto [srcStage, srcAccess] = GetLayoutFlags( tex->layout );
+    const auto [dstStage, dstAccess] = GetLayoutFlags( newLayout );
+
+    VkImageAspectFlags aspect = isDepthFormat( tex->format ) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+    VkImageSubresourceRange range = {
+        .aspectMask = aspect,
+        .levelCount = 1,
+        .layerCount = 1,
+    };
+
     const VkImageMemoryBarrier2 barrier = {
         .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-        .srcStageMask        = src.stage,
-        .srcAccessMask       = src.access,
-        .dstStageMask        = dst.stage,
-        .dstAccessMask       = dst.access,
-        .oldLayout           = oldLayout,
+        .srcStageMask        = srcStage,
+        .srcAccessMask       = srcAccess,
+        .dstStageMask        = dstStage,
+        .dstAccessMask       = dstAccess,
+        .oldLayout           = tex->layout,
         .newLayout           = newLayout,
         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image               = image,
+        .image               = tex->image,
         .subresourceRange    = range,
     };
     const VkDependencyInfo depInfo = {
@@ -144,6 +173,7 @@ void Rhi::CommandList::ImageBarrier( VkImage image, StageAccess src, StageAccess
         .pImageMemoryBarriers    = &barrier
     };
     vkCmdPipelineBarrier2( mBuf, &depInfo );
+    tex->layout = newLayout;
 }
 
 void Rhi::CommandList::PushConstants( const void * data, uint size ) {

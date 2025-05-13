@@ -18,14 +18,14 @@ namespace Util {
         bool Valid( void ) const { return mGen != 0; }
 
         uint Index( void ) const { return mIndex; }
-    
+
         bool operator ==( const Handle<Type> & other ) const { return mIndex == other.mIndex && mGen == other.mGen; }
         bool operator !=( const Handle<Type> & other ) const { return mIndex != other.mIndex || mGen != other.mGen; }
-    
+
     private:
         template<typename Type, typename HotType, typename ColdType> friend class Pool;
         Handle( uint idx, uint gen ) : mIndex( idx ), mGen( gen ) {}
-        
+
         uint mIndex = 0;
         uint mGen   = 0;
     };
@@ -36,7 +36,7 @@ namespace Util {
     using SamplerHandle        = Handle<struct _Sampler>;
     using BufferHandle         = Handle<struct _Buffer>;
     using ShaderHandle         = Handle<struct _Shader>;
-    using RenderPipelineHander = Handle<struct _RenderPipeline>;
+    using RenderPipelineHandle = Handle<struct _RenderPipeline>;
     using ModelHandle          = Handle<struct _Model>;
 
     template<typename Type, typename HotType, typename ColdType> class Pool final {
@@ -77,10 +77,10 @@ namespace Util {
             printf("[INFO] Created %s Pool with %u entries!\n", resourceType, entries);
         }
 
-        Handle<Type> Create( HotType && hot, ColdType && cold ) {
+        [[nodiscard]] Handle<Type> Create( HotType && hot, ColdType && cold ) {
             if ( mFreeList.empty() )
                 Resize( 0 );
-            
+
             const uint idx = mFreeList.top();
             mFreeList.pop();
             ++mEntries;

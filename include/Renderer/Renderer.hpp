@@ -15,7 +15,7 @@
 namespace Rhi {
     using std::vector;
     using namespace Resource;
-    
+
     class Renderer final : public Core::Singleton<Renderer> {
     public:
         void Init( uint2, void * );
@@ -35,20 +35,18 @@ namespace Rhi {
         glm::mat4 mProjection = glm::mat4( 0.0f );
         float mNear = 0.1f, mFar = 100.0f, mFov = 60.0f;
 
-        VkShaderModule smVert, smFrag;
-        RenderPipeline opaquePipeline;
-        Shader         vertexShader;
-        Shader         fragmentShader;
+        Util::RenderPipelineHandle pipelineOpaque, pipelinePlane;
+        Util::ShaderHandle shMainVert, shMainFrag;
         Util::BufferHandle vertexBuffer;
         Util::BufferHandle indexBuffer;
 
         Util::SamplerHandle  sampler;
-        Util::TextureHandle  depthBuffer;
+        Util::TextureHandle  depthBuffer, currentSwapchain;
 
         Util::BufferHandle lightBuffer;
         uint               lightCount;
 
-        Mesh mMesh;
+        Mesh mSponza, mCurtains;
 
         void ComputeProjectionMatrix( void );
         void DebugPrintStructSizes( void );

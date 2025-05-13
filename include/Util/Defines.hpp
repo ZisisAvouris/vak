@@ -10,3 +10,5 @@ using sbyte  = int8_t;
 using sshort = int16_t;
 using sint   = int32_t;
 using slong  = int64_t;
+
+#define VAK_ARRSIZE(arr) ( sizeof((arr)) / sizeof((arr[0])) )

@@ -138,25 +138,28 @@ void Rhi::Device::CreateLogicalDevice( void ) {
     vector<const char *> deviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME, VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME };
 
     VkPhysicalDeviceFeatures vkFeatures10 = {
-        .multiDrawIndirect = VK_TRUE,
-        .samplerAnisotropy = VK_TRUE,
+        .multiDrawIndirect        = VK_TRUE,
+        .samplerAnisotropy        = VK_TRUE,
+        .fragmentStoresAndAtomics = VK_TRUE,
     };
 
     VkPhysicalDeviceVulkan11Features vkFeatures11 = {
-        .sType                = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
-        .shaderDrawParameters = VK_TRUE
+        .sType                    = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
+        .storageBuffer16BitAccess = VK_TRUE,
+        .shaderDrawParameters     = VK_TRUE,
     };
 
     VkPhysicalDeviceVulkan12Features vkFeatures12 = { // Vulkan 1.2 features we need
         .sType                                        = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
         .pNext                                        = &vkFeatures11,
+        .shaderFloat16                                = VK_TRUE,
         .descriptorIndexing                           = VK_TRUE,
         .descriptorBindingSampledImageUpdateAfterBind = VK_TRUE,
         .descriptorBindingUpdateUnusedWhilePending    = VK_TRUE,
         .descriptorBindingPartiallyBound              = VK_TRUE,
         .runtimeDescriptorArray                       = VK_TRUE,
         .timelineSemaphore                            = VK_TRUE,
-        .bufferDeviceAddress                          = VK_TRUE
+        .bufferDeviceAddress                          = VK_TRUE,
     };
 
     VkPhysicalDeviceVulkan13Features vkFeatures13 = { // Vulkan 1.3 features we need
@@ -194,6 +197,9 @@ void Rhi::Device::CreateLogicalDevice( void ) {
 
     vkGetDeviceQueue( mLogicalDevice, mQueues.graphicsIndex, 0, &mQueues.graphics );
     vkGetDeviceQueue( mLogicalDevice, mQueues.transferIndex, 0, &mQueues.transfer );
+
+    RegisterDebugObjectName( VK_OBJECT_TYPE_QUEUE, (ulong)mQueues.graphics, "Graphics Queue" );
+    RegisterDebugObjectName( VK_OBJECT_TYPE_QUEUE, (ulong)mQueues.transfer, "Transfer Queue" );
 }
 
 void Rhi::Device::RegisterDebugObjectName( VkObjectType type, ulong handle, const std::string & name ) {
@@ -227,7 +233,8 @@ Util::TextureHandle Rhi::Device::CreateTexture( const TextureSpecification & spe
         .extent = spec.extent,
         .type   = spec.type,
         .format = spec.format,
-        .usage  = spec.usage
+        .layout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .usage  = spec.usage,
     };
     TextureMetadata metadata = {
         .isDepth   = isDepthFormat( spec.format ),
@@ -301,14 +308,14 @@ Util::BufferHandle Rhi::Device::CreateBuffer( const BufferSpecification & spec )
     VkBufferUsageFlags usageFlags = spec.usage;
     if ( buf.storage & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT )
         usageFlags |= ( VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT );
-    
+
     VkBufferCreateInfo ci = {
         .sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         .size        = buf.size,
         .usage       = usageFlags,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE
     };
-    
+
     VmaAllocationCreateInfo allocCI = {};
     if ( buf.storage & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT ) {
         allocCI.flags          = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
@@ -330,7 +337,7 @@ Util::BufferHandle Rhi::Device::CreateBuffer( const BufferSpecification & spec )
 
     if ( buf.storage & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT )
         vmaMapMemory( mVma, metadata.alloc, &metadata.ptr );
-    
+
     if ( buf.usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT ) {
         const VkBufferDeviceAddressInfo addressInfo = {
             .sType  = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
@@ -410,7 +417,7 @@ VkImageView Rhi::Device::CreateImageView( VkImage image, VkFormat format, VkImag
             .levelCount     = 1,
             .baseArrayLayer = 0,
             .layerCount     = 1
-        }
+        },
     };
     VkImageView imageView = VK_NULL_HANDLE;
     assert( vkCreateImageView( mLogicalDevice, &ci, nullptr, &imageView ) == VK_SUCCESS );
