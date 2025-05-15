@@ -58,7 +58,7 @@ void Rhi::Swapchain::Resize( uint2 newResolution ) {
         .clipped               = VK_TRUE,
         .oldSwapchain          = VK_NULL_HANDLE
     };
-    assert( vkCreateSwapchainKHR( Device::Instance()->GetDevice(), &ci, nullptr, &mSwapchain ) == VK_SUCCESS );
+    VK_VERIFY( vkCreateSwapchainKHR( Device::Instance()->GetDevice(), &ci, nullptr, &mSwapchain ) );
 
     VkImage swapchainImages[4];
     mSwapchainImages.resize( mNumSwapchainImages );
@@ -80,7 +80,7 @@ void Rhi::Swapchain::Resize( uint2 newResolution ) {
                 .layerCount     = 1
             }
         };
-        assert( vkCreateImageView( Device::Instance()->GetDevice(), &ivci, nullptr, &swapchainViews[i] ) == VK_SUCCESS );
+        VK_VERIFY( vkCreateImageView( Device::Instance()->GetDevice(), &ivci, nullptr, &swapchainViews[i] ) );
 
         Texture tex = {
             .image  = swapchainImages[i],
@@ -96,7 +96,7 @@ void Rhi::Swapchain::Resize( uint2 newResolution ) {
         mSwapchainImages[i] = Device::Instance()->GetTexturePool()->Create( std::move( tex ), std::move( metadata ) );
 
         VkSemaphoreCreateInfo sci = { .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
-        assert( vkCreateSemaphore( Device::Instance()->GetDevice(), &sci, nullptr, &mAcquireSemaphores[i] ) == VK_SUCCESS );
+        VK_VERIFY( vkCreateSemaphore( Device::Instance()->GetDevice(), &sci, nullptr, &mAcquireSemaphores[i] ) );
         Device::Instance()->RegisterDebugObjectName( VK_OBJECT_TYPE_SEMAPHORE, (ulong)mAcquireSemaphores[i], "Swapchain Acquire Semaphore " + std::to_string(i) );
     }
 }
@@ -109,10 +109,10 @@ Util::TextureHandle Rhi::Swapchain::AcquireImage( void ) {
         .pSemaphores    = &timeline,
         .pValues        = &mTimelineWaitValues[mCurrentImage]
     };
-    assert( vkWaitSemaphores( Device::Instance()->GetDevice(), &waitSemaphore, UINT64_MAX ) == VK_SUCCESS );
+    VK_VERIFY( vkWaitSemaphores( Device::Instance()->GetDevice(), &waitSemaphore, UINT64_MAX ) );
 
     VkSemaphore acquire = mAcquireSemaphores[mCurrentImage];
-    assert( vkAcquireNextImageKHR( Device::Instance()->GetDevice(), mSwapchain, UINT64_MAX, acquire, VK_NULL_HANDLE, &mCurrentImage ) == VK_SUCCESS );
+    VK_VERIFY( vkAcquireNextImageKHR( Device::Instance()->GetDevice(), mSwapchain, UINT64_MAX, acquire, VK_NULL_HANDLE, &mCurrentImage ) );
     CommandPool::Instance()->SetSwapchainAcquireSemaphore( acquire );
     return mSwapchainImages[mCurrentImage];
 }

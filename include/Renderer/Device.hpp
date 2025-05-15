@@ -3,8 +3,10 @@
 #include <Renderer/RenderBase.hpp>
 #include <Renderer/RenderContext.hpp>
 #include <Core/WindowManager.hpp>
+#include <ktx.h>
 
 #include <vector>
+#include <algorithm>
 
 namespace Rhi {
 
@@ -30,6 +32,7 @@ namespace Rhi {
 
         void Upload( Util::BufferHandle, const void *, size_t );
         void Upload( Util::TextureHandle, const void * );
+        void Upload( Util::TextureHandle, ktxTexture2 * );
 
     private:
         Util::BufferHandle mStagingBuffer;
@@ -75,6 +78,7 @@ namespace Rhi {
         SamplerPool * GetSamplerPool( void ) { return &mSamplerPool; }
 
         Util::TextureHandle CreateTexture( const TextureSpecification & );
+        Util::TextureHandle CreateTexture( ktxTexture2 *, const std::string & );
         Util::BufferHandle  CreateBuffer( const BufferSpecification & );
         Util::SamplerHandle CreateSampler( const SamplerSpecification & );
 
@@ -84,7 +88,7 @@ namespace Rhi {
 
         ulong DeviceAddress( Util::BufferHandle );
 
-        VkImageView CreateImageView( VkImage, VkFormat, VkImageAspectFlags );
+        VkImageView CreateImageView( VkImage, VkFormat, uint, VkImageAspectFlags );
 
         void QuerySurfaceCapabilities( void );
 
@@ -103,7 +107,7 @@ namespace Rhi {
         vector<VkFormat>           mDeviceDepthFormats;
         VkSurfaceCapabilitiesKHR   mSurfaceCapabilities;
 
-        TexturePool        mTexturePool { 64, "Texture" };
+        TexturePool        mTexturePool { 128, "Texture" };
         SamplerPool        mSamplerPool {  8, "Sampler" };
         BufferPool         mBufferPool  { 64, "Buffer"  };
 

@@ -10,6 +10,13 @@
 #include <utility>
 #include <Util/Pool.hpp>
 
+#define VK_VERIFY( cond ) {                            \
+    VkResult result = ##cond;                          \
+    if ( result != VK_SUCCESS ) {                      \
+        printf("[ASSERT FAIL] %s failed with code %d\n", #cond, result); \
+    } \
+}
+
 namespace Rhi {
     using std::pair;
     using std::make_pair;
@@ -42,6 +49,7 @@ namespace Rhi {
         VkExtent3D            extent      = { 0, 0, 0 };
         VkImageUsageFlags     usage       = 0;
         VkMemoryPropertyFlags storage     = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+        uint                  mipCount    = 1;
         const void *          data        = nullptr; 
         bool                  isSwapchain = false;
         std::string           debugName   = "You should name this texture!";
@@ -54,6 +62,7 @@ namespace Rhi {
         VkFormat          format = VK_FORMAT_UNDEFINED;
         VkImageLayout     layout = VK_IMAGE_LAYOUT_UNDEFINED;
         VkImageUsageFlags usage  = 0;
+        uint              mips   = 1;
     };
     struct TextureMetadata final {
         std::string    debugName   = "Texture: ";

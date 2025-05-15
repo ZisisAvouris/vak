@@ -14,7 +14,7 @@ void Rhi::Device::Init( void ) {
         .instance         = RenderContext::Instance()->GetVulkanInstance(),
         .vulkanApiVersion = VK_API_VERSION_1_4
     };
-    assert( vmaCreateAllocator( &aci, &mVma ) == VK_SUCCESS );
+    VK_VERIFY( vmaCreateAllocator( &aci, &mVma ) );
 
     StagingDevice::Instance()->Init();
 }
@@ -44,7 +44,7 @@ void Rhi::Device::CreateSurface( void ) {
         .hinstance = Core::WindowManager::Instance()->GetWindowInstance(),
         .hwnd      = Core::WindowManager::Instance()->GetWindowHandle()
     };
-    assert( vkCreateWin32SurfaceKHR( RenderContext::Instance()->GetVulkanInstance(), &ci, nullptr, &mSurface ) == VK_SUCCESS );
+    VK_VERIFY( vkCreateWin32SurfaceKHR( RenderContext::Instance()->GetVulkanInstance(), &ci, nullptr, &mSurface ) );
 }
 
 void Rhi::Device::QuerySurfaceCapabilities( void ) {
@@ -192,7 +192,7 @@ void Rhi::Device::CreateLogicalDevice( void ) {
         .ppEnabledExtensionNames = deviceExtensions.data(),
         .pEnabledFeatures        = &vkFeatures10
     };
-    assert( vkCreateDevice( mPhysicalDevice, &ci, nullptr, &mLogicalDevice ) == VK_SUCCESS );
+    VK_VERIFY( vkCreateDevice( mPhysicalDevice, &ci, nullptr, &mLogicalDevice ) );
     volkLoadDevice( mLogicalDevice );
 
     vkGetDeviceQueue( mLogicalDevice, mQueues.graphicsIndex, 0, &mQueues.graphics );
@@ -209,7 +209,7 @@ void Rhi::Device::RegisterDebugObjectName( VkObjectType type, ulong handle, cons
         .objectHandle = handle,
         .pObjectName  = name.c_str()
     };
-    assert( vkSetDebugUtilsObjectNameEXT( mLogicalDevice, &ci ) == VK_SUCCESS );
+    VK_VERIFY( vkSetDebugUtilsObjectNameEXT( mLogicalDevice, &ci ) );
 };
 
 uint Rhi::Device::FindQueueFamilyIndex( span<const VkQueueFamilyProperties> props, VkQueueFlags flags, VkQueueFlags avoid ) {
@@ -235,6 +235,7 @@ Util::TextureHandle Rhi::Device::CreateTexture( const TextureSpecification & spe
         .format = spec.format,
         .layout = VK_IMAGE_LAYOUT_UNDEFINED,
         .usage  = spec.usage,
+        .mips   = spec.mipCount
     };
     TextureMetadata metadata = {
         .isDepth   = isDepthFormat( spec.format ),
@@ -247,7 +248,7 @@ Util::TextureHandle Rhi::Device::CreateTexture( const TextureSpecification & spe
         .imageType             = spec.type,
         .format                = spec.format,
         .extent                = spec.extent,
-        .mipLevels             = 1,
+        .mipLevels             = spec.mipCount,
         .arrayLayers           = 1,
         .samples               = VK_SAMPLE_COUNT_1_BIT,
         .tiling                = VK_IMAGE_TILING_OPTIMAL,
@@ -258,7 +259,7 @@ Util::TextureHandle Rhi::Device::CreateTexture( const TextureSpecification & spe
         .initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED,
     };
     VmaAllocationCreateInfo ai = { .usage = spec.storage & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT ? VMA_MEMORY_USAGE_CPU_TO_GPU : VMA_MEMORY_USAGE_AUTO };
-    assert( vmaCreateImage( mVma, &ci, &ai, &tex.image, &metadata.alloc, nullptr ) == VK_SUCCESS );
+    VK_VERIFY( vmaCreateImage( mVma, &ci, &ai, &tex.image, &metadata.alloc, nullptr ) );
     RegisterDebugObjectName( VK_OBJECT_TYPE_IMAGE, (ulong)tex.image, metadata.debugName + " IMAGE" );
 
     if ( spec.storage & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT ) {
@@ -273,7 +274,7 @@ Util::TextureHandle Rhi::Device::CreateTexture( const TextureSpecification & spe
         aspect = VK_IMAGE_ASPECT_COLOR_BIT;
     }
 
-    tex.view = CreateImageView( tex.image, spec.format, aspect );
+    tex.view = CreateImageView( tex.image, spec.format, spec.mipCount, aspect );
     RegisterDebugObjectName( VK_OBJECT_TYPE_IMAGE_VIEW, (ulong)tex.view, metadata.debugName + " VIEW" );
 
     Util::TextureHandle handle = mTexturePool.Create( std::move( tex ), std::move( metadata ) );
@@ -281,6 +282,19 @@ Util::TextureHandle Rhi::Device::CreateTexture( const TextureSpecification & spe
         StagingDevice::Instance()->Upload( handle, spec.data );
     }
     Descriptors::Instance()->SetUpdateDescriptors();
+    return handle;
+}
+
+Util::TextureHandle Rhi::Device::CreateTexture( ktxTexture2 * ktx, const std::string & debugName ) {
+    Util::TextureHandle handle = CreateTexture( TextureSpecification {
+        .type      = VK_IMAGE_TYPE_2D,
+        .format    = (VkFormat)ktx->vkFormat,
+        .extent    = { ktx->baseWidth, ktx->baseHeight, ktx->baseDepth },
+        .usage     = VK_IMAGE_USAGE_SAMPLED_BIT,
+        .mipCount  = ktx->numLevels,
+        .debugName = debugName
+    });
+    StagingDevice::Instance()->Upload( handle, ktx );
     return handle;
 }
 
@@ -322,7 +336,7 @@ Util::BufferHandle Rhi::Device::CreateBuffer( const BufferSpecification & spec )
         allocCI.requiredFlags  = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
         allocCI.preferredFlags = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
 
-        assert( vkCreateBuffer( mLogicalDevice, &ci, nullptr, &buf.buf ) == VK_SUCCESS );
+        VK_VERIFY( vkCreateBuffer( mLogicalDevice, &ci, nullptr, &buf.buf ) );
         VkMemoryRequirements requirements;
         vkGetBufferMemoryRequirements( Device::Instance()->GetDevice(), buf.buf, &requirements );
         vkDestroyBuffer( Device::Instance()->GetDevice(), buf.buf, nullptr );
@@ -331,7 +345,7 @@ Util::BufferHandle Rhi::Device::CreateBuffer( const BufferSpecification & spec )
             allocCI.requiredFlags |= VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
     }
     allocCI.usage = VMA_MEMORY_USAGE_AUTO;
-    vmaCreateBuffer( mVma, &ci, &allocCI, &buf.buf, &metadata.alloc, nullptr );
+    VK_VERIFY( vmaCreateBufferWithAlignment( mVma, &ci, &allocCI, 16, &buf.buf, &metadata.alloc, nullptr ) );
 
     RegisterDebugObjectName( VK_OBJECT_TYPE_BUFFER, (ulong)buf.buf, metadata.debugName );
 
@@ -376,11 +390,11 @@ Util::SamplerHandle Rhi::Device::CreateSampler( const SamplerSpecification & spe
         .maxAnisotropy           = 16.0f,
         .compareOp               = VK_COMPARE_OP_NEVER,
         .minLod                  = .0f,
-        .maxLod                  = .0f,
+        .maxLod                  = VK_LOD_CLAMP_NONE,
         .borderColor             = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE
     };
     Sampler sampler;
-    assert( vkCreateSampler( mLogicalDevice, &ci, nullptr, &sampler.sampler ) == VK_SUCCESS );
+    VK_VERIFY( vkCreateSampler( mLogicalDevice, &ci, nullptr, &sampler.sampler ) );
 
     SamplerMetadata metadata = { .spec = spec };
     metadata.debugName += spec.debugName;
@@ -404,7 +418,7 @@ ulong Rhi::Device::DeviceAddress( Util::BufferHandle handle ) {
     return buf->address;
 }
 
-VkImageView Rhi::Device::CreateImageView( VkImage image, VkFormat format, VkImageAspectFlags aspect ) {
+VkImageView Rhi::Device::CreateImageView( VkImage image, VkFormat format, uint mipCount, VkImageAspectFlags aspect ) {
     VkImageViewCreateInfo ci = {
         .sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .image      = image,
@@ -414,12 +428,12 @@ VkImageView Rhi::Device::CreateImageView( VkImage image, VkFormat format, VkImag
         .subresourceRange = {
             .aspectMask     = aspect,
             .baseMipLevel   = 0,
-            .levelCount     = 1,
+            .levelCount     = mipCount,
             .baseArrayLayer = 0,
             .layerCount     = 1
         },
     };
     VkImageView imageView = VK_NULL_HANDLE;
-    assert( vkCreateImageView( mLogicalDevice, &ci, nullptr, &imageView ) == VK_SUCCESS );
+    VK_VERIFY( vkCreateImageView( mLogicalDevice, &ci, nullptr, &imageView ) );
     return imageView;
 }

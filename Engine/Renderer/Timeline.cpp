@@ -11,7 +11,7 @@ void Rhi::Timeline::Init( void ) {
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
         .pNext = &typeCI
     };
-    assert( vkCreateSemaphore( Device::Instance()->GetDevice(), &semCI, nullptr, &mTimeline ) == VK_SUCCESS );
+    VK_VERIFY( vkCreateSemaphore( Device::Instance()->GetDevice(), &semCI, nullptr, &mTimeline ) );
     Device::Instance()->RegisterDebugObjectName( VK_OBJECT_TYPE_SEMAPHORE, (ulong)mTimeline, "Timeline Semaphore" );
     mFrame = 0;
 }
@@ -26,5 +26,5 @@ void Rhi::Timeline::SignalTimeline( ulong value ) {
         .semaphore = mTimeline,
         .value     = value
     };
-    assert( vkSignalSemaphore( Device::Instance()->GetDevice(), &signalInfo ) == VK_SUCCESS );
+    VK_VERIFY( vkSignalSemaphore( Device::Instance()->GetDevice(), &signalInfo ) );
 }

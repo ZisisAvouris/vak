@@ -5,7 +5,8 @@
 
 struct DrawParameters {
     uint transformID;
-    uint materialID;
+    uint baseColorID;
+    uint normalID;
 };
 layout ( std430, buffer_reference ) readonly buffer DrawParameterBuffer {
     DrawParameters dp[];
@@ -18,32 +19,12 @@ struct PointLight {
     float linear;
     float quadratic;
 };
-layout ( std430, buffer_reference ) readonly buffer LightBuffer {
+layout ( std430, buffer_reference ) buffer LightBuffer {
     PointLight pointLights[];
 };
 
 layout ( std430, buffer_reference ) readonly buffer TransformBuffer {
     mat4 model[];
-};
-
-struct TransparentFragment {
-    f16vec4 color;
-    float   depth;
-    uint    next;
-};
-layout ( std430, buffer_reference ) buffer TransparencyList {
-    TransparentFragment fragments[];
-};
-
-layout ( std430, buffer_reference ) buffer AtomicCounter {
-    uint counter;
-};
-
-layout ( std430, buffer_reference ) buffer OITBuffer {
-    AtomicCounter    atomicCounter;
-    TransparencyList list;
-    uint             texHeads;
-    uint             maxTransparentFragments;
 };
 
 layout ( push_constant ) uniform PushConstants {
@@ -53,6 +34,5 @@ layout ( push_constant ) uniform PushConstants {
     vec3                cameraPosition;
     TransformBuffer     transforms;
     DrawParameterBuffer drawParams;
-    OITBuffer           oit;
 } pc;
 

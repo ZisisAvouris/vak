@@ -20,7 +20,7 @@ Util::ShaderHandle Rhi::ShaderManager::LoadShader( const ShaderSpecification & s
         .codeSize = file.size,
         .pCode    = file.byteCode,
     };
-    vkCreateShaderModule( Device::Instance()->GetDevice(), &smci, nullptr, &shader.sm );
+    VK_VERIFY( vkCreateShaderModule( Device::Instance()->GetDevice(), &smci, nullptr, &shader.sm ) );
     delete[] file.byteCode;
 
     return mShaderPool.Create( std::move( shader ), std::move( metadata ) );

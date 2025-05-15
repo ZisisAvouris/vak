@@ -7,7 +7,7 @@ using namespace std;
 
 void Rhi::PipelineFactory::Init( void ) {
     VkPipelineCacheCreateInfo pcci = { .sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO };
-    assert( vkCreatePipelineCache( Device::Instance()->GetDevice(), &pcci, nullptr, &mPipelineCache ) == VK_SUCCESS );
+    VK_VERIFY( vkCreatePipelineCache( Device::Instance()->GetDevice(), &pcci, nullptr, &mPipelineCache ) );
 }
 
 void Rhi::PipelineFactory::Destroy( void ) {
@@ -143,7 +143,7 @@ Util::RenderPipelineHandle Rhi::PipelineFactory::CreateRenderPipeline( const Ren
         .pushConstantRangeCount = 1,
         .pPushConstantRanges    = &pcRange
     };
-    assert( vkCreatePipelineLayout( Device::Instance()->GetDevice(), &plci, nullptr, &rp.layout ) == VK_SUCCESS );
+    VK_VERIFY( vkCreatePipelineLayout( Device::Instance()->GetDevice(), &plci, nullptr, &rp.layout ) );
 
     VkGraphicsPipelineCreateInfo gpci = {
         .sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
@@ -161,7 +161,7 @@ Util::RenderPipelineHandle Rhi::PipelineFactory::CreateRenderPipeline( const Ren
         .layout              = rp.layout,
     };
 
-    assert( vkCreateGraphicsPipelines( Device::Instance()->GetDevice(), mPipelineCache, 1, &gpci, nullptr, &rp.pipeline ) == VK_SUCCESS );
+    VK_VERIFY( vkCreateGraphicsPipelines( Device::Instance()->GetDevice(), mPipelineCache, 1, &gpci, nullptr, &rp.pipeline ) );
     return mRenderPipelinePool.Create( std::move( rp ), std::move( metadata ) );
 }
 

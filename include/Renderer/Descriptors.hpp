@@ -29,7 +29,7 @@ namespace Rhi {
         VkDescriptorSetLayout mDescriptorLayout        = VK_NULL_HANDLE;
         bool                  mShouldUpdateDescriptors = true;
 
-        static constexpr ushort sMaxTextures = 64;
+        static constexpr ushort sMaxTextures = 128;
         static constexpr ushort sMaxSamplers = 8;
     };
 }

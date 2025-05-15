@@ -32,7 +32,7 @@ void Rhi::Descriptors::Init( void ) {
         .bindingCount = Binding_MAX,
         .pBindings    = bindings
     };
-    assert( vkCreateDescriptorSetLayout( Device::Instance()->GetDevice(), &setLayoutCI, nullptr, &mDescriptorLayout ) == VK_SUCCESS );
+    VK_VERIFY( vkCreateDescriptorSetLayout( Device::Instance()->GetDevice(), &setLayoutCI, nullptr, &mDescriptorLayout ) );
 
     VkDescriptorPoolSize poolSizes[Binding_MAX] {
         { .type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, .descriptorCount = sMaxTextures },
@@ -45,7 +45,7 @@ void Rhi::Descriptors::Init( void ) {
         .poolSizeCount = Binding_MAX - 1,
         .pPoolSizes    = poolSizes
     };
-    assert( vkCreateDescriptorPool( Device::Instance()->GetDevice(), &poolCI, nullptr, &mDescriptorPool ) == VK_SUCCESS );
+    VK_VERIFY( vkCreateDescriptorPool( Device::Instance()->GetDevice(), &poolCI, nullptr, &mDescriptorPool ) );
 
     VkDescriptorSetAllocateInfo ai = {
         .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
@@ -53,7 +53,7 @@ void Rhi::Descriptors::Init( void ) {
         .descriptorSetCount = 1,
         .pSetLayouts        = &mDescriptorLayout
     };
-    assert( vkAllocateDescriptorSets( Device::Instance()->GetDevice(), &ai, &mDescriptorSet ) == VK_SUCCESS );
+    VK_VERIFY( vkAllocateDescriptorSets( Device::Instance()->GetDevice(), &ai, &mDescriptorSet ) );
 }
 
 void Rhi::Descriptors::Destroy( void ) {

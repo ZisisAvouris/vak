@@ -7,11 +7,16 @@
 #include <assert.h>
 #include <span>
 #include <vector>
+#include <map>
+#include <filesystem>
+#include <algorithm>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <stb_image.h>
+#include <stb_image_resize2.h>
+#include <ktx.h>
 
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
@@ -21,30 +26,28 @@ namespace Resource {
     using std::pair;
     using std::span;
     using std::vector;
+    using std::map;
+    namespace fs = std::filesystem;
 
     struct Vertex final {
         glm::vec3 position;
         glm::vec3 normal;
+        glm::vec3 tangent;
         glm::vec2 uv;
     };
-    
+
     struct ShaderFile final {
         uint * byteCode = nullptr;
         ulong  size     = 0;
     };
     ShaderFile LoadShader( const std::string & );
 
-    struct Image final {
-        _byte * data       = nullptr;
-        ushort  width      = 0;
-        ushort  height     = 0;
-        _byte   components = 0;
-    };
-    Image LoadTexture( const std::string & );
+    ktxTexture2 * LoadTexture( const fs::path &, bool, bool );
 
     struct DrawParameters final {
         uint transformID;
-        uint materialID;
+        uint baseColorID;
+        uint normalID;
     };
 
     struct Mesh final {
@@ -52,7 +55,7 @@ namespace Resource {
         Mesh() = default;
         ~Mesh();
 
-        bool LoadMeshFromFile( const std::string &, uint = 0 );
+        bool LoadMeshFromFile( const fs::path &, bool, uint = 0 );
 
         Util::BufferHandle mVertexBuffer;
         Util::BufferHandle mIndexBuffer;
@@ -74,11 +77,9 @@ namespace Resource {
         vector<Util::TextureHandle> mTextures;
         glm::mat4 mTransform = glm::mat4( 1.0f );
 
-        std::string mFilepath;
-        vector<pair<uint, std::string>> mTextureFilenames;
+        map<std::string, uint> mTextureIdMap;
 
         uint mMeshCount, mOpaqueCount, mTransparentCount, mVertexCount;
-        void UploadTextures( span<DrawParameters> );
         void GetTransformMatrices( const aiNode *, const aiScene *, const glm::mat4 &, span<glm::mat4> );
 
     };

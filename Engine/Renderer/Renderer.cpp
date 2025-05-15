@@ -46,8 +46,8 @@ void Rhi::Renderer::Init( uint2 renderResolution, void * windowHandle ) {
     ShaderManager::Instance()->Init();
     GUI::Renderer::Instance()->Init( windowHandle );
 
-    assert( mSponza.LoadMeshFromFile( "assets/models/modern_sponza/NewSponza_Main_glTF_003.gltf", aiProcess_FlipUVs | aiProcess_GenSmoothNormals ) );
-    assert( mCurtains.LoadMeshFromFile( "assets/models/modern_sponza_curtains/NewSponza_Curtains_glTF.gltf", aiProcess_FlipUVs | aiProcess_GenSmoothNormals ) );
+    const bool sponzaOK = mSponza.LoadMeshFromFile( "assets/models/modern_sponza/NewSponza_Main_glTF_003.gltf", true, aiProcess_FlipUVs | aiProcess_GenSmoothNormals );
+    const bool curtainsOK = mCurtains.LoadMeshFromFile( "assets/models/modern_sponza_curtains/NewSponza_Curtains_glTF.gltf", true, aiProcess_FlipUVs | aiProcess_GenSmoothNormals );
 
     shMainVert = ShaderManager::Instance()->LoadShader( { "assets/shaders/shader.vert.spv", "Main Vertex" } );
     shMainFrag = ShaderManager::Instance()->LoadShader( { "assets/shaders/shader.frag.spv", "Main Fragment" } );
@@ -56,9 +56,17 @@ void Rhi::Renderer::Init( uint2 renderResolution, void * windowHandle ) {
         .vertexSpec     = {
             .attributes = { { .location = 0, .format = VK_FORMAT_R32G32B32_SFLOAT, .offset = offsetof( Vertex, position ) },
                             { .location = 1, .format = VK_FORMAT_R32G32B32_SFLOAT, .offset = offsetof( Vertex, normal ) },
-                            { .location = 2, .format = VK_FORMAT_R32G32_SFLOAT,    .offset = offsetof( Vertex, uv ) }
+                            { .location = 2, .format = VK_FORMAT_R32G32B32_SFLOAT, .offset = offsetof( Vertex, tangent ) },
+                            { .location = 3, .format = VK_FORMAT_R32G32_SFLOAT,    .offset = offsetof( Vertex, uv ) }
             },
             .bindings = { { .stride = sizeof( Vertex ) } }
+        },
+        .blend = {
+            .enable     = VK_TRUE,
+            .srcRgbBF   = VK_BLEND_FACTOR_SRC_ALPHA,
+            .dstRgbBF   = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+            .srcAlphaBF = VK_BLEND_FACTOR_ONE,
+            .dstAlphaBF = VK_BLEND_FACTOR_ZERO
         },
         .vertexShader   = ShaderManager::Instance()->GetShaderPool()->Get( shMainVert )->sm,
         .fragmentShader = ShaderManager::Instance()->GetShaderPool()->Get( shMainFrag )->sm,
@@ -68,7 +76,8 @@ void Rhi::Renderer::Init( uint2 renderResolution, void * windowHandle ) {
         .vertexSpec     = {
             .attributes = { { .location = 0, .format = VK_FORMAT_R32G32B32_SFLOAT, .offset = offsetof( Vertex, position ) },
                             { .location = 1, .format = VK_FORMAT_R32G32B32_SFLOAT, .offset = offsetof( Vertex, normal ) },
-                            { .location = 2, .format = VK_FORMAT_R32G32_SFLOAT,    .offset = offsetof( Vertex, uv ) }
+                            { .location = 2, .format = VK_FORMAT_R32G32B32_SFLOAT, .offset = offsetof( Vertex, tangent ) },
+                            { .location = 3, .format = VK_FORMAT_R32G32_SFLOAT,    .offset = offsetof( Vertex, uv ) }
             },
             .bindings = { { .stride = sizeof( Vertex ) } }
         },
@@ -94,19 +103,19 @@ void Rhi::Renderer::Init( uint2 renderResolution, void * windowHandle ) {
 
     vector<Entity::PointLight> pointLights = {
         Entity::PointLight {
-            .position  = glm::vec3( 5.0f, 2.0f, 0.0f ),
-            .color     = glm::vec3( 1.0f, 0.0f, 0.0f ),
-            .intensity = 2.0f,
-            .linear    = 0.22f,
-            .quadratic = 0.20f
+            .position  = glm::vec3( 0.0f, 2.0f, 0.0f ),
+            .color     = glm::vec3( 1.0f, 1.0f, 1.0f ),
+            .intensity = 1.0f,
+            .linear    = 0.027f,
+            .quadratic = 0.0028f
         },
-        Entity::PointLight {
-            .position  = glm::vec3( -5.0f, 2.0f, 0.0f ),
-            .color     = glm::vec3( 0.0f, 0.0f, 1.0f ),
-            .intensity = 2.0f,
-            .linear    = 0.22f,
-            .quadratic = 0.20f
-        }
+        // Entity::PointLight {
+        //     .position  = glm::vec3( -7.0f, 5.0f, -2.0f ),
+        //     .color     = glm::vec3( 1.0f, 1.0f, 1.0f ),
+        //     .intensity = 1.0f,
+        //     .linear    = 0.07f,
+        //     .quadratic = 0.017f
+        // }
     };
     lightCount = pointLights.size();
 

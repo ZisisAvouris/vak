@@ -13,7 +13,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL VkDebugCallback( VkDebugUtilsMessageSeverityFlagB
 }
 
 void Rhi::RenderContext::Init( void ) {
-    assert( volkInitialize() == VK_SUCCESS );
+    VK_VERIFY( volkInitialize() );
 
     VkApplicationInfo ai = {
         .sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO,
@@ -62,7 +62,7 @@ void Rhi::RenderContext::Init( void ) {
         .enabledExtensionCount   = static_cast<uint>( instanceExtensionNames.size() ),
         .ppEnabledExtensionNames = instanceExtensionNames.data()
     };
-    assert( vkCreateInstance( &ci, nullptr, &mInstance ) == VK_SUCCESS );
+    VK_VERIFY( vkCreateInstance( &ci, nullptr, &mInstance ) );
     volkLoadInstance( mInstance );
 
     if ( hasDebugUtils ) {
@@ -75,7 +75,7 @@ void Rhi::RenderContext::Init( void ) {
             .pfnUserCallback = &VkDebugCallback,
             .pUserData = this,
         };
-        assert( vkCreateDebugUtilsMessengerEXT( mInstance, &dci, nullptr, &mDebugMessenger ) == VK_SUCCESS );
+        VK_VERIFY( vkCreateDebugUtilsMessengerEXT( mInstance, &dci, nullptr, &mDebugMessenger ) );
     }
 }
 

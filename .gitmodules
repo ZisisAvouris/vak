@@ -13,3 +13,6 @@
 [submodule "third-party/imgui"]
 	path = third-party/imgui
 	url = https://github.com/ocornut/imgui
+[submodule "third-party/KTX-Software"]
+	path = third-party/KTX-Software
+	url = https://github.com/KhronosGroup/KTX-Software

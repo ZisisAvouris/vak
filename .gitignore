@@ -38,3 +38,4 @@ build/*
 out/*
 imgui.ini
 assets/models/*
+assets/.cache/*

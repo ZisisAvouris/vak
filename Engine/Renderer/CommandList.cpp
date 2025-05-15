@@ -149,9 +149,10 @@ void Rhi::CommandList::ImageBarrier( Texture * tex, VkImageLayout newLayout ) {
 
     VkImageAspectFlags aspect = isDepthFormat( tex->format ) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
     VkImageSubresourceRange range = {
-        .aspectMask = aspect,
-        .levelCount = 1,
-        .layerCount = 1,
+        .aspectMask   = aspect,
+        .baseMipLevel = 0,
+        .levelCount   = tex->mips,
+        .layerCount   = 1,
     };
 
     const VkImageMemoryBarrier2 barrier = {
