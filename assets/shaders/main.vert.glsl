@@ -13,7 +13,8 @@ layout ( location = 1 ) out vec3 outFragPosition;
 layout ( location = 2 ) out vec3 outViewPosition;
 layout ( location = 3 ) out flat uint outBaseColorID;
 layout ( location = 4 ) out flat uint outNormalID;
-layout ( location = 5 ) out mat3 outTBN;
+layout ( location = 5 ) out flat uint outMetallicRoughnessID;
+layout ( location = 6 ) out mat3 outTBN;
 
 void main() {
     const mat4 modelMatrix = pc.transforms.model[pc.drawParams.dp[gl_BaseInstance].transformID];
@@ -31,5 +32,6 @@ void main() {
     outViewPosition = pc.cameraPosition;
     outBaseColorID  = pc.drawParams.dp[gl_BaseInstance].baseColorID;
     outNormalID     = pc.drawParams.dp[gl_BaseInstance].normalID;
+    outMetallicRoughnessID = pc.drawParams.dp[gl_BaseInstance].metallicRoughnessID;
     gl_Position     = pc.viewProj * tpos;
 }

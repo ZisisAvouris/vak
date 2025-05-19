@@ -7,6 +7,7 @@ struct DrawParameters {
     uint transformID;
     uint baseColorID;
     uint normalID;
+    uint metallicRoughnessID;
 };
 layout ( std430, buffer_reference ) readonly buffer DrawParameterBuffer {
     DrawParameters dp[];

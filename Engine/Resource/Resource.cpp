@@ -244,6 +244,24 @@ namespace Resource {
                     dp.normalID = mTextureIdMap[texturePath.C_Str()];
                 }
             }
+
+            // Detect texture with combined metallic and roughness properties
+            if ( material->GetTexture( aiTextureType_DIFFUSE_ROUGHNESS, 0, &texturePath ) == AI_SUCCESS ) {
+                if ( !mTextureIdMap.contains( texturePath.C_Str() ) ) {
+                    ktxTexture2 * texture = LoadTexture( parentPath.string() + texturePath.C_Str(), compressTextures, false );
+                    if ( !texture ) {
+                        printf("Failed to load texture %s\n", texturePath.C_Str());
+                        return false;
+                    }
+                    Util::TextureHandle metallicRoughnessMap = Rhi::Device::Instance()->CreateTexture( texture,
+                        fs::path( texturePath.C_Str() ).stem().string().c_str() );
+                    ktxTexture2_Destroy( texture );
+                    dp.metallicRoughnessID = metallicRoughnessMap.Index();
+                    mTextureIdMap[texturePath.C_Str()] = metallicRoughnessMap.Index();
+                } else {
+                    dp.metallicRoughnessID = mTextureIdMap[texturePath.C_Str()];
+                }
+            }
             paramData.emplace_back( dp );
 
             vertexStart += mesh->mNumVertices;

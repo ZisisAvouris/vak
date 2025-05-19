@@ -385,7 +385,7 @@ Util::SamplerHandle Rhi::Device::CreateSampler( const SamplerSpecification & spe
         .addressModeU            = spec.wrapU,
         .addressModeV            = spec.wrapV,
         .addressModeW            = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-        .mipLodBias              = .0f,
+        .mipLodBias              = -0.5f,
         .anisotropyEnable        = VK_TRUE,
         .maxAnisotropy           = 16.0f,
         .compareOp               = VK_COMPARE_OP_NEVER,

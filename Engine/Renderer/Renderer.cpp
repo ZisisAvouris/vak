@@ -103,19 +103,19 @@ void Rhi::Renderer::Init( uint2 renderResolution, void * windowHandle ) {
 
     vector<Entity::PointLight> pointLights = {
         Entity::PointLight {
-            .position  = glm::vec3( 0.0f, 2.0f, 0.0f ),
+            .position  = glm::vec3( -10.0f, 3.0f, -1.0f ),
             .color     = glm::vec3( 1.0f, 1.0f, 1.0f ),
-            .intensity = 1.0f,
+            .intensity = 3.0f,
             .linear    = 0.027f,
             .quadratic = 0.0028f
         },
-        // Entity::PointLight {
-        //     .position  = glm::vec3( -7.0f, 5.0f, -2.0f ),
-        //     .color     = glm::vec3( 1.0f, 1.0f, 1.0f ),
-        //     .intensity = 1.0f,
-        //     .linear    = 0.07f,
-        //     .quadratic = 0.017f
-        // }
+        Entity::PointLight {
+            .position  = glm::vec3( 10.0f, 3.0f, -1.0f ),
+            .color     = glm::vec3( 1.0f, 1.0f, 1.0f ),
+            .intensity = 3.0f,
+            .linear    = 0.027f,
+            .quadratic = 0.0028f
+        }
     };
     lightCount = pointLights.size();
 

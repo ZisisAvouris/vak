@@ -48,6 +48,7 @@ namespace Resource {
         uint transformID;
         uint baseColorID;
         uint normalID;
+        uint metallicRoughnessID;
     };
 
     struct Mesh final {
