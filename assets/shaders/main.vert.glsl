@@ -3,10 +3,10 @@
 
 #include "common.glsl"
 
-layout ( location = 0 ) in vec3 pos;
-layout ( location = 1 ) in vec3 normal;
-layout ( location = 2 ) in vec3 tangent;
-layout ( location = 3 ) in vec2 uv;
+layout ( location = 0 ) in vec3 inPos;
+layout ( location = 1 ) in vec3 inNormal;
+layout ( location = 2 ) in vec3 inTangent;
+layout ( location = 3 ) in vec2 inUV;
 
 layout ( location = 0 ) out vec2 outUV;
 layout ( location = 1 ) out vec3 outFragPosition;
@@ -17,18 +17,18 @@ layout ( location = 5 ) out flat uint outMetallicRoughnessID;
 layout ( location = 6 ) out mat3 outTBN;
 
 void main() {
-    const mat4 modelMatrix = pc.transforms.model[pc.drawParams.dp[gl_BaseInstance].transformID];
-
+    const mat4 modelMatrix  = pc.transforms.model[pc.drawParams.dp[gl_BaseInstance].transformID];
     const mat3 normalMatrix = transpose( inverse( mat3( modelMatrix ) ) );
-    vec3 T = normalize( normalMatrix * tangent );
-    vec3 N = normalize( normalMatrix * normal );
-    T = normalize( T - dot( T, N ) * N );
-    vec3 B = cross( N, T );
-    outTBN = mat3( T, B, N );
 
-    const vec4 tpos = modelMatrix * vec4( pos, 1.0f );
-    outUV           = uv;
-    outFragPosition = vec3( tpos );
+    vec3 tangent = normalize( normalMatrix * inTangent );
+    vec3 normal  = normalize( normalMatrix * inNormal );
+    tangent = normalize( tangent - dot( tangent, normal ) * normal );
+    vec3 bitangent = cross( normal, tangent );
+    outTBN = mat3( tangent, bitangent, normal );
+
+    const vec4 tpos = modelMatrix * vec4( inPos, 1.0f );
+    outUV           = inUV;
+    outFragPosition = tpos.xyz;
     outViewPosition = pc.cameraPosition;
     outBaseColorID  = pc.drawParams.dp[gl_BaseInstance].baseColorID;
     outNormalID     = pc.drawParams.dp[gl_BaseInstance].normalID;

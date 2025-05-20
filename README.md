@@ -2,8 +2,8 @@
 The goal of this project is to create a modern Vulkan renderer with a few features that would make it resemble a basic game engine. <br>
 The renderer is built around `VK_KHR_dynamic_rendering` and bindless resources.
 
-![Latest Progress 15 May 2025](./latest_progress_15_May_2025.png)
-**Latest Progress: 15 May 2025**
+![Latest Progress 20 May 2025](./latest_progress_20_May_2025.png)
+**Latest Progress: 20 May 2025**
 
 ## Build Instructions
 **Only works on Windows!** <br>

@@ -54,27 +54,21 @@ vec4 Sample( uint textureID, uint samplerID, vec2 uv ) {
     return texture( nonuniformEXT( sampler2D( bTextures[textureID], bSamplers[samplerID] ) ), uv );
 }
 
-vec3 ComputePointLight( PointLight light, vec3 albedo, vec3 normal, vec3 viewDir ) {
-    const float dist        = length( light.position - inFragPosition );
-    const float attenuation = 1.0f / ( 1.0f + light.linear * dist + light.quadratic * dist * dist );
-
-    const vec3 ambient = albedo * 0.1f * attenuation;
-
-    const vec3  lightDir = normalize( inTBN * (light.position - inFragPosition) );
-    const float diff     = max( dot( lightDir, normal ), 0.0f );
-    const vec3  diffuse  = diff * albedo * light.color * attenuation;
-
-    const vec3  halfwayDir = normalize( lightDir + viewDir );
-    const float spec       = pow( max( dot( normal, halfwayDir), 0.0f ), 128.0f );
-    const vec3  specular   = light.color * spec * attenuation;
-
-    return ambient + diffuse + specular;
+vec3 TonemapACES( vec3 color ) {
+    const float a = 2.51;
+    const float b = 0.03;
+    const float c = 2.43;
+    const float d = 0.59;
+    const float e = 0.14;
+    return clamp((color * (a * color + b)) / (color * (c * color + d) + e), 0.0, 1.0);
 }
 
 void main() {
-    const vec3 normal  = normalize( Sample( inNormalID, 0, inUV ).rgb * 2.0f - 1.0f );
-    const vec3 viewDir = normalize( inTBN * (inViewPosition - inFragPosition) );
-    const vec3 albedo  = Sample( inBaseColorID, 0, inUV ).rgb;
+    const vec3 normalSample = Sample( inNormalID, 0, inUV ).rgb * 2.0f - 1.0f;
+    const vec3 normal       = normalize( inTBN * normalSample );
+
+    const vec3 viewDir = normalize( inViewPosition - inFragPosition );
+    const vec3 albedo  = pow( Sample( inBaseColorID, 0, inUV ).rgb, vec3( 2.2f ) );
     const vec3 metallicRoughness = Sample( inMetallicRoughnessID, 0, inUV ).rgb;
     const float metalness = metallicRoughness.b;
     const float roughness = metallicRoughness.g;
@@ -85,7 +79,7 @@ void main() {
     for ( uint i = 0; i < pc.lightCount; ++i ) {
         PointLight pointLight = pc.lightBuffer.pointLights[i];
 
-        const vec3 L = normalize( inTBN * (pointLight.position - inFragPosition) );
+        const vec3 L = normalize( pointLight.position - inFragPosition );
         const vec3 H = normalize( viewDir + L );
         const float NdotL = max( dot(normal, L), 0.0f );
 
@@ -109,7 +103,7 @@ void main() {
         Lo += ( kD * albedo / PI + specular ) * radiance * NdotL * pointLight.intensity;
     }
 
-    const vec3 ambient = albedo * 0.1f;
-    vec3 finalColor = ambient + Lo;
+    const vec3 ambient = albedo * 0.03f * ( 1.0f - metalness );
+    vec3 finalColor = pow( TonemapACES( ambient + Lo ), vec3( 1.0f / 2.2f ) );
     fragColor = vec4( finalColor, 1.0f );
 }
