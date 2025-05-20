@@ -56,10 +56,10 @@ void Rhi::Renderer::Init( uint2 renderResolution, void * windowHandle ) {
 
     pipelineOpaque = PipelineFactory::Instance()->CreateRenderPipeline({
         .vertexSpec     = {
-            .attributes = { { .location = 0, .format = VK_FORMAT_R32G32B32_SFLOAT, .offset = offsetof( Vertex, position ) },
-                            { .location = 1, .format = VK_FORMAT_R32G32B32_SFLOAT, .offset = offsetof( Vertex, normal ) },
-                            { .location = 2, .format = VK_FORMAT_R32G32B32_SFLOAT, .offset = offsetof( Vertex, tangent ) },
-                            { .location = 3, .format = VK_FORMAT_R32G32_SFLOAT,    .offset = offsetof( Vertex, uv ) }
+            .attributes = { { .location = 0, .format = VK_FORMAT_R32G32B32_SFLOAT,         .offset = offsetof( Vertex, position ) },
+                            { .location = 1, .format = VK_FORMAT_A2B10G10R10_SNORM_PACK32, .offset = offsetof( Vertex, normal ) },
+                            { .location = 2, .format = VK_FORMAT_A2B10G10R10_SNORM_PACK32, .offset = offsetof( Vertex, tangent ) },
+                            { .location = 3, .format = VK_FORMAT_R16G16_SFLOAT,            .offset = offsetof( Vertex, uv ) }
             },
             .bindings = { { .stride = sizeof( Vertex ) } }
         },
@@ -76,10 +76,10 @@ void Rhi::Renderer::Init( uint2 renderResolution, void * windowHandle ) {
     });
     pipelinePlane = PipelineFactory::Instance()->CreateRenderPipeline({
         .vertexSpec     = {
-            .attributes = { { .location = 0, .format = VK_FORMAT_R32G32B32_SFLOAT, .offset = offsetof( Vertex, position ) },
-                            { .location = 1, .format = VK_FORMAT_R32G32B32_SFLOAT, .offset = offsetof( Vertex, normal ) },
-                            { .location = 2, .format = VK_FORMAT_R32G32B32_SFLOAT, .offset = offsetof( Vertex, tangent ) },
-                            { .location = 3, .format = VK_FORMAT_R32G32_SFLOAT,    .offset = offsetof( Vertex, uv ) }
+            .attributes = { { .location = 0, .format = VK_FORMAT_R32G32B32_SFLOAT,         .offset = offsetof( Vertex, position ) },
+                            { .location = 1, .format = VK_FORMAT_A2B10G10R10_SNORM_PACK32, .offset = offsetof( Vertex, normal ) },
+                            { .location = 2, .format = VK_FORMAT_A2B10G10R10_SNORM_PACK32, .offset = offsetof( Vertex, tangent ) },
+                            { .location = 3, .format = VK_FORMAT_R16G16_SFLOAT,            .offset = offsetof( Vertex, uv ) }
             },
             .bindings = { { .stride = sizeof( Vertex ) } }
         },

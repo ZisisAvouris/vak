@@ -14,6 +14,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/gtc/packing.hpp>
 #include <stb_image.h>
 #include <stb_image_resize2.h>
 #include <ktx.h>
@@ -31,9 +32,9 @@ namespace Resource {
 
     struct Vertex final {
         glm::vec3 position;
-        glm::vec3 normal;
-        glm::vec3 tangent;
-        glm::vec2 uv;
+        uint      normal;
+        uint      tangent;
+        uint      uv;
     };
 
     struct ShaderFile final {

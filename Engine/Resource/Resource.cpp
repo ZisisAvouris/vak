@@ -199,9 +199,9 @@ namespace Resource {
                 const aiVector3D uv   = mesh->mTextureCoords[0][vtx];
                 vertexData.emplace_back( Vertex {
                     .position = glm::vec3( pos.x, pos.y, pos.z ),
-                    .normal   = glm::vec3( norm.x, norm.y, norm.z ),
-                    .tangent  = glm::vec3( tang.x, tang.y, tang.z ),
-                    .uv       = glm::vec2( uv.x, uv.y )
+                    .normal   = glm::packSnorm3x10_1x2( { norm.x, norm.y, norm.z, 0.0f } ),
+                    .tangent  = glm::packSnorm3x10_1x2( { tang.x, tang.y, tang.z, 0.0f } ),
+                    .uv       = glm::packHalf2x16( { uv.x, uv.y } )
                 });
             }
 
