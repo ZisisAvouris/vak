@@ -42,7 +42,7 @@ namespace Resource {
     };
     ShaderFile LoadShader( const std::string & );
 
-    ktxTexture2 * LoadTexture( const fs::path &, bool, bool );
+    ktxTexture2 * LoadTexture( const fs::path &, bool );
 
     struct DrawParameters final {
         uint transformID;

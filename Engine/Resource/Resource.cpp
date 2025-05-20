@@ -1,5 +1,6 @@
 #include <Resource/Resource.hpp>
 #include <Renderer/Device.hpp>
+#include <Core/JobSystem.hpp>
 
 namespace Resource {
     using namespace std;
@@ -23,7 +24,7 @@ namespace Resource {
         return result;
     }
 
-    ktxTexture2 * LoadTexture( const fs::path & path, bool shouldCompress, bool isNormalMap ) {
+    ktxTexture2 * LoadTexture( const fs::path & path, bool shouldCompress ) {
         const string filename   = path.stem().string();
         const string cacheDir   = (*path.begin()).string() + "/.cache/";
         const string compressed = cacheDir + filename + ".bc7";
@@ -59,7 +60,7 @@ namespace Resource {
         ci.baseHeight = (uint)y;
 
         uint mipCount = 1; // Original texture + the resulting mips
-        while ( x > 128 && y > 128 ) {
+        while ( x > 512 && y > 512 ) {
             x = x >> 1;
             y = y >> 1;
             mipCount++;
@@ -93,7 +94,7 @@ namespace Resource {
                 return nullptr;
             }
 
-            ktxResult compressionOK = ktxTexture2_CompressBasis( texture, isNormalMap ? 255 : 128 );
+            ktxResult compressionOK = ktxTexture2_CompressBasis( texture, 255 );
             if ( compressionOK != KTX_SUCCESS ) {
                 printf("Texture %s compression failed %u\n", path.string().c_str(), compressionOK);
                 stbi_image_free(data);
@@ -145,10 +146,36 @@ namespace Resource {
                 mVertexCount += ( opacity == 1.0f ) * scene->mMeshes[i]->mNumVertices;
                 totalTransparentMeshes += ( opacity < 1.0f );
             }
+
+            aiString texturePath;
+            if ( material->GetTexture( aiTextureType_DIFFUSE, 0, &texturePath ) == AI_SUCCESS ) {
+                if ( !mTextureIdMap.contains( texturePath.C_Str() ) )
+                    mTextureIdMap[texturePath.C_Str()] = scene->mMeshes[i]->mMaterialIndex;
+            }
+            if ( material->GetTexture( aiTextureType_NORMALS, 0, &texturePath ) == AI_SUCCESS ) {
+                if ( !mTextureIdMap.contains( texturePath.C_Str() ) )
+                    mTextureIdMap[texturePath.C_Str()] = scene->mMeshes[i]->mMaterialIndex;
+            }
+            if ( material->GetTexture( aiTextureType_DIFFUSE_ROUGHNESS, 0, &texturePath ) == AI_SUCCESS ) {
+                if ( !mTextureIdMap.contains( texturePath.C_Str() ) )
+                    mTextureIdMap[texturePath.C_Str()] = scene->mMeshes[i]->mMaterialIndex;
+            }
         }
         mMeshCount = totalOpaqueMeshes + totalTransparentMeshes;
         mOpaqueCount = totalOpaqueMeshes;
         mTransparentCount = totalTransparentMeshes;
+
+        std::mutex mapMutex;
+        for ( const auto & [path, _] : mTextureIdMap ) {
+            Core::JobSystem::Instance()->DispatchJob( [&] {
+                ktxTexture2 * texture = LoadTexture( parentPath.string() + path, compressTextures );
+                Util::TextureHandle handle = Rhi::Device::Instance()->CreateTexture( texture, path );
+                ktxTexture2_Destroy( texture );
+
+                std::lock_guard<std::mutex> lock( mapMutex );
+                mTextureIdMap[path] = handle.Index();
+            });
+        }
 
         vector<Vertex> vertexData;
         vertexData.reserve( totalVertices );
@@ -156,8 +183,6 @@ namespace Resource {
         indexData.reserve( totalIndices );
         vector<VkDrawIndexedIndirectCommand> opaqueCmds;
         opaqueCmds.reserve( totalOpaqueMeshes );
-        vector<VkDrawIndexedIndirectCommand> transparentCmds;
-        transparentCmds.reserve( totalTransparentMeshes );
         vector<DrawParameters> paramData;
         paramData.reserve( scene->mNumMeshes );
         vector<glm::mat4> transformData;
@@ -190,15 +215,7 @@ namespace Resource {
 
             float opacity = 1.0f;
             if ( material->Get( AI_MATKEY_OPACITY, opacity ) == AI_SUCCESS ) {
-                if ( opacity < 1.0f ) {
-                    transparentCmds.emplace_back( VkDrawIndexedIndirectCommand {
-                        .indexCount    = mesh->mNumFaces * 3,
-                        .instanceCount = 1,
-                        .firstIndex    = indexStart,
-                        .vertexOffset  = (int)vertexStart,
-                        .firstInstance = i
-                    });
-                } else {
+                if ( opacity == 1.0f ) {
                     opaqueCmds.emplace_back( VkDrawIndexedIndirectCommand {
                         .indexCount    = mesh->mNumFaces * 3,
                         .instanceCount = 1,
@@ -208,67 +225,13 @@ namespace Resource {
                     });
                 }
             }
-
-            DrawParameters dp = { .transformID = i };
-            aiString texturePath;
-            if ( material->GetTexture( aiTextureType_DIFFUSE, 0, &texturePath ) == AI_SUCCESS ) {
-                if ( !mTextureIdMap.contains( texturePath.C_Str() ) ) {
-                    ktxTexture2 * texture = LoadTexture( parentPath.string() + texturePath.C_Str(), compressTextures, false );
-                    if ( !texture ) {
-                        printf("Failed to load texture %s\n", texturePath.C_Str());
-                        return false;
-                    }
-                    Util::TextureHandle diffuseMap = Rhi::Device::Instance()->CreateTexture( texture,
-                        fs::path( texturePath.C_Str() ).stem().string().c_str() );
-                    ktxTexture2_Destroy( texture );
-                    dp.baseColorID = diffuseMap.Index();
-                    mTextureIdMap[texturePath.C_Str()] = diffuseMap.Index();
-                } else {
-                    dp.baseColorID = mTextureIdMap[texturePath.C_Str()];
-                }
-            }
-
-            if ( material->GetTexture( aiTextureType_NORMALS, 0, &texturePath ) == AI_SUCCESS ) {
-                if ( !mTextureIdMap.contains( texturePath.C_Str() ) ) {
-                    ktxTexture2 * texture = LoadTexture( parentPath.string() + texturePath.C_Str(), compressTextures, true );
-                    if ( !texture ) {
-                        printf("Failed to load textures %s\n", texturePath.C_Str());
-                        return false;
-                    }
-                    Util::TextureHandle normalMap = Rhi::Device::Instance()->CreateTexture( texture,
-                        fs::path( texturePath.C_Str() ).stem().string().c_str() );
-                    ktxTexture2_Destroy( texture );
-                    dp.normalID = normalMap.Index();
-                    mTextureIdMap[texturePath.C_Str()] = normalMap.Index();
-                } else {
-                    dp.normalID = mTextureIdMap[texturePath.C_Str()];
-                }
-            }
-
-            // Detect texture with combined metallic and roughness properties
-            if ( material->GetTexture( aiTextureType_DIFFUSE_ROUGHNESS, 0, &texturePath ) == AI_SUCCESS ) {
-                if ( !mTextureIdMap.contains( texturePath.C_Str() ) ) {
-                    ktxTexture2 * texture = LoadTexture( parentPath.string() + texturePath.C_Str(), compressTextures, false );
-                    if ( !texture ) {
-                        printf("Failed to load texture %s\n", texturePath.C_Str());
-                        return false;
-                    }
-                    Util::TextureHandle metallicRoughnessMap = Rhi::Device::Instance()->CreateTexture( texture,
-                        fs::path( texturePath.C_Str() ).stem().string().c_str() );
-                    ktxTexture2_Destroy( texture );
-                    dp.metallicRoughnessID = metallicRoughnessMap.Index();
-                    mTextureIdMap[texturePath.C_Str()] = metallicRoughnessMap.Index();
-                } else {
-                    dp.metallicRoughnessID = mTextureIdMap[texturePath.C_Str()];
-                }
-            }
-            paramData.emplace_back( dp );
+            paramData.emplace_back( DrawParameters { .transformID = i  } );
 
             vertexStart += mesh->mNumVertices;
             indexStart  += mesh->mNumFaces * 3;
         }
-        mTextureIdMap.clear();
         GetTransformMatrices( scene->mRootNode, scene, mTransform, transformData );
+        Core::JobSystem::Instance()->WaitAll();
 
         mVertexBuffer = Rhi::Device::Instance()->CreateBuffer({
             .usage     = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
@@ -291,13 +254,6 @@ namespace Resource {
             .ptr       = transformData.data(),
             .debugName = path.string() + " Transform Data"
         });
-        mDrawParamBuffer = Rhi::Device::Instance()->CreateBuffer({
-            .usage     = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-            .storage   = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            .size      = static_cast<uint>( paramData.size() * sizeof( DrawParameters ) ),
-            .ptr       = paramData.data(),
-            .debugName = path.string() + " Draw Parameters"
-        });
         mOpaqueIndirectBuffer = Rhi::Device::Instance()->CreateBuffer({
             .usage     = VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
             .storage   = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
@@ -305,15 +261,33 @@ namespace Resource {
             .ptr       = opaqueCmds.data(),
             .debugName = path.string() + " Opaque Indirect Commands"
         });
-        // mTransparentIndirectBuffer = Rhi::Device::Instance()->CreateBuffer({
-        //     .usage     = VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-        //     .storage   = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        //     .size      = static_cast<uint>( transparentCmds.size() * sizeof( VkDrawIndexedIndirectCommand ) ),
-        //     .ptr       = transparentCmds.data(),
-        //     .debugName = path.string() + " Transparent Indirect Commands"
-        // });
+
+        for ( uint i = 0; i < scene->mNumMeshes; ++i ) {
+            const aiMesh     * mesh     = scene->mMeshes[i];
+            const aiMaterial * material = scene->mMaterials[mesh->mMaterialIndex];
+
+            aiString texturePath;
+            if ( material->GetTexture( aiTextureType_DIFFUSE, 0, &texturePath ) == AI_SUCCESS ) {
+                paramData[i].baseColorID = mTextureIdMap[texturePath.C_Str()];
+            }
+            if ( material->GetTexture( aiTextureType_NORMALS, 0, &texturePath ) == AI_SUCCESS ) {
+                paramData[i].normalID = mTextureIdMap[texturePath.C_Str()];
+            }
+            if ( material->GetTexture( aiTextureType_DIFFUSE_ROUGHNESS, 0, &texturePath ) == AI_SUCCESS ) {
+                paramData[i].metallicRoughnessID = mTextureIdMap[texturePath.C_Str()];
+            }
+        }
+
+        mDrawParamBuffer = Rhi::Device::Instance()->CreateBuffer({
+            .usage     = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+            .storage   = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            .size      = static_cast<uint>( paramData.size() * sizeof( DrawParameters ) ),
+            .ptr       = paramData.data(),
+            .debugName = path.string() + " Draw Parameters"
+        });
 
         aiReleaseImport( scene );
+        mTextureIdMap.clear();
         return true;
     }
 

@@ -7,6 +7,7 @@
 
 #include <vector>
 #include <algorithm>
+#include <mutex>
 
 namespace Rhi {
 
@@ -114,6 +115,8 @@ namespace Rhi {
         // The dummy textures serves as a placeholder for the bindless array of textures that are not sampled (e.g. swapchain, depth etc),
         // in order to avoid a sparse array and problems with indices
         Util::TextureHandle mDummyTexture;
+
+        std::mutex mResourceCreationMutex;
 
         void CreateSurface( void );
 

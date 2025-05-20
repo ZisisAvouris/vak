@@ -11,6 +11,7 @@
 #include <Renderer/Timeline.hpp>
 #include <Core/SceneGraph.hpp>
 #include <Core/Input.hpp>
+#include <Core/JobSystem.hpp>
 #include <stb_image.h>
 
 void Rhi::Renderer::Init( uint2 renderResolution, void * windowHandle ) {
@@ -45,6 +46,7 @@ void Rhi::Renderer::Init( uint2 renderResolution, void * windowHandle ) {
     PipelineFactory::Instance()->Init();
     ShaderManager::Instance()->Init();
     GUI::Renderer::Instance()->Init( windowHandle );
+    Core::JobSystem::Instance()->Init();
 
     const bool sponzaOK = mSponza.LoadMeshFromFile( "assets/models/modern_sponza/NewSponza_Main_glTF_003.gltf", true, aiProcess_FlipUVs | aiProcess_GenSmoothNormals );
     const bool curtainsOK = mCurtains.LoadMeshFromFile( "assets/models/modern_sponza_curtains/NewSponza_Curtains_glTF.gltf", true, aiProcess_FlipUVs | aiProcess_GenSmoothNormals );
@@ -133,6 +135,7 @@ void Rhi::Renderer::Init( uint2 renderResolution, void * windowHandle ) {
 void Rhi::Renderer::Destroy( void ) {
     vkDeviceWaitIdle( Device::Instance()->GetDevice() );
 
+    Core::JobSystem::Instance()->Destroy();
     GUI::Renderer::Instance()->Destroy();
     ShaderManager::Instance()->Destroy();
     PipelineFactory::Instance()->Destroy();

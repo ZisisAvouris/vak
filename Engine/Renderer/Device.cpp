@@ -286,6 +286,7 @@ Util::TextureHandle Rhi::Device::CreateTexture( const TextureSpecification & spe
 }
 
 Util::TextureHandle Rhi::Device::CreateTexture( ktxTexture2 * ktx, const std::string & debugName ) {
+    std::lock_guard<std::mutex> lock( mResourceCreationMutex );
     Util::TextureHandle handle = CreateTexture( TextureSpecification {
         .type      = VK_IMAGE_TYPE_2D,
         .format    = (VkFormat)ktx->vkFormat,
